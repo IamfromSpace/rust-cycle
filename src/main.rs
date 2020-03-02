@@ -126,9 +126,149 @@ fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
 
 #[cfg(test)]
 mod tests {
+    use super::parse_hrm;
+    use super::HeartRateMeasurement;
 
     #[test]
-    fn my_test() {
-        assert_eq!(true, true);
+    fn parse_hrm_16_bit_energy_expended_and_one_rr_intervals() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: Some(523),
+                rr_intervals: Some(vec!(266.0 / 1024.0))
+            },
+            parse_hrm(vec!(0b11001, 70, 0, 11, 2, 10, 1))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_16_bit_and_one_rr_intervals() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: None,
+                rr_intervals: Some(vec!(266.0 / 1024.0))
+            },
+            parse_hrm(vec!(0b10001, 70, 0, 10, 1))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_and_three_rr_intervals() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: None,
+                rr_intervals: Some(vec!(266.0 / 1024.0, 523.0 / 1024.0, 780.0 / 1024.0))
+            },
+            parse_hrm(vec!(0b10000, 70, 10, 1, 11, 2, 12, 3))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_and_one_rr_intervals() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: None,
+                rr_intervals: Some(vec!(266.0 / 1024.0))
+            },
+            parse_hrm(vec!(0b10000, 70, 10, 1))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_16_bit_and_energy_expended() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: Some(266),
+                rr_intervals: None
+            },
+            parse_hrm(vec!(0b1001, 70, 0, 10, 1))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_and_energy_expended() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: Some(266),
+                rr_intervals: None
+            },
+            parse_hrm(vec!(0b1000, 70, 10, 1))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_without_contact() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: Some(false),
+                energy_expended: None,
+                rr_intervals: None
+            },
+            parse_hrm(vec!(0b100, 70))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_with_contact() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: Some(true),
+                energy_expended: None,
+                rr_intervals: None
+            },
+            parse_hrm(vec!(0b110, 70))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_16_bit_big_simple() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 266,
+                is_sensor_contact_detected: None,
+                energy_expended: None,
+                rr_intervals: None
+            },
+            parse_hrm(vec!(1, 10, 1))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_16_bit_simple() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: None,
+                rr_intervals: None
+            },
+            parse_hrm(vec!(1, 70, 0))
+        );
+    }
+
+    #[test]
+    fn parse_hrm_simplest() {
+        assert_eq!(
+            HeartRateMeasurement {
+                bpm: 70,
+                is_sensor_contact_detected: None,
+                energy_expended: None,
+                rr_intervals: None
+            },
+            parse_hrm(vec!(0, 70))
+        );
     }
 }
