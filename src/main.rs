@@ -110,7 +110,6 @@ fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
             let rr_interval_count = (data.len() - rr_interval_index) / 2;
             let mut vec = Vec::with_capacity(rr_interval_count);
             for i in 0..rr_interval_count {
-                println!("{}", rr_interval_index);
                 vec.push(
                     ((((data[rr_interval_index + 2 * i + 1] as u16) << 8)
                         + (data[rr_interval_index + 2 * i] as u16)) as f32)
