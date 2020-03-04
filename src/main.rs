@@ -174,6 +174,62 @@ fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
     }
 }
 
+// A Struct that does not care about bit compression
+#[derive(Debug, PartialEq)]
+pub struct RevolutionData {
+    // Total number of revolutions, this is years of data for wheels and cranks
+    revolution_count: u32,
+    // The time (in seconds) that the last revolution finished, this type is
+    // chosen because it is both lossless and holds years of data.
+    last_revolution_event_time: f64,
+}
+
+// A Struct that does not care about bit compression
+#[derive(Debug, PartialEq)]
+pub struct CscMeasurement {
+    // Data about wheel rotations
+    wheel: Option<RevolutionData>,
+    // Data about crank rotations
+    crank: Option<RevolutionData>,
+}
+
+// Notably, this function always assumes a valid input
+fn parse_csc_measurement(data: Vec<u8>) -> CscMeasurement {
+    let has_wheel_data = data[0] & 1 == 1;
+    let has_crank_data = data[0] & 0b10 == 0b10;
+    let wheel_index = 1;
+    let crank_index = wheel_index + if has_wheel_data { 6 } else { 0 };
+
+    CscMeasurement {
+        wheel: if has_wheel_data {
+            Some(RevolutionData {
+                revolution_count: ((data[wheel_index + 3] as u32) << 24)
+                    + ((data[wheel_index + 2] as u32) << 16)
+                    + ((data[wheel_index + 1] as u32) << 8)
+                    + (data[wheel_index] as u32),
+                last_revolution_event_time: ((((data[wheel_index + 4 + 1] as u16) << 8)
+                    + (data[wheel_index + 4] as u16))
+                    as f64)
+                    / 1024.0,
+            })
+        } else {
+            None
+        },
+        crank: if has_crank_data {
+            Some(RevolutionData {
+                revolution_count: ((data[crank_index + 1] as u32) << 8)
+                    + (data[crank_index] as u32),
+                last_revolution_event_time: ((((data[crank_index + 2 + 1] as u16) << 8)
+                    + (data[crank_index + 2] as u16))
+                    as f64)
+                    / 1024.0,
+            })
+        } else {
+            None
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_hrm;
