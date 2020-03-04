@@ -377,4 +377,64 @@ mod tests {
             parse_hrm(vec!(0, 70))
         );
     }
+
+    use super::parse_csc_measurement;
+    use super::CscMeasurement;
+    use super::RevolutionData;
+
+    #[test]
+    fn parse_csc_with_wheel_and_crank() {
+        assert_eq!(
+            CscMeasurement {
+                wheel: Some(RevolutionData {
+                    revolution_count: 0x04030201,
+                    last_revolution_event_time: 0x0201 as f64 / 1024.0,
+                }),
+                crank: Some(RevolutionData {
+                    revolution_count: 0x0201,
+                    last_revolution_event_time: 0x0201 as f64 / 1024.0,
+                }),
+            },
+            parse_csc_measurement(vec!(3, 1, 2, 3, 4, 1, 2, 1, 2, 1, 2))
+        );
+    }
+
+    #[test]
+    fn parse_csc_with_crank() {
+        assert_eq!(
+            CscMeasurement {
+                wheel: None,
+                crank: Some(RevolutionData {
+                    revolution_count: 0x0201,
+                    last_revolution_event_time: 0x0201 as f64 / 1024.0,
+                }),
+            },
+            parse_csc_measurement(vec!(2, 1, 2, 1, 2))
+        );
+    }
+
+    #[test]
+    fn parse_csc_with_wheel() {
+        assert_eq!(
+            CscMeasurement {
+                wheel: Some(RevolutionData {
+                    revolution_count: 0x04030201,
+                    last_revolution_event_time: 0x0201 as f64 / 1024.0,
+                }),
+                crank: None,
+            },
+            parse_csc_measurement(vec!(1, 1, 2, 3, 4, 1, 2))
+        );
+    }
+
+    #[test]
+    fn parse_csc_empty() {
+        assert_eq!(
+            CscMeasurement {
+                wheel: None,
+                crank: None,
+            },
+            parse_csc_measurement(vec!(0))
+        );
+    }
 }
