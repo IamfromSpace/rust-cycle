@@ -142,7 +142,7 @@ fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
         2 + if has_energy_expended { 2 } else { 0 } + if is_16_bit { 1 } else { 0 };
     HeartRateMeasurement {
         bpm: if is_16_bit {
-            ((data[2] as u16) << 8) + (data[1] as u16)
+            u16::from_le_bytes([data[1], data[2]])
         } else {
             data[1] as u16
         },
@@ -152,10 +152,10 @@ fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
             None
         },
         energy_expended: if has_energy_expended {
-            Some(
-                ((data[energy_expended_index + 1] as u16) << 8)
-                    + (data[energy_expended_index] as u16),
-            )
+            Some(u16::from_le_bytes([
+                data[energy_expended_index],
+                data[energy_expended_index + 1],
+            ]))
         } else {
             None
         },
@@ -163,11 +163,11 @@ fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
             let rr_interval_count = (data.len() - rr_interval_index) / 2;
             let mut vec = Vec::with_capacity(rr_interval_count);
             for i in 0..rr_interval_count {
-                vec.push(
-                    ((((data[rr_interval_index + 2 * i + 1] as u16) << 8)
-                        + (data[rr_interval_index + 2 * i] as u16)) as f32)
-                        / 1024.0,
-                );
+                let as_u16 = u16::from_le_bytes([
+                    data[rr_interval_index + 2 * i],
+                    data[rr_interval_index + 2 * i + 1],
+                ]);
+                vec.push(as_u16 as f32 / 1024.0);
             }
             vec
         },
@@ -203,13 +203,16 @@ fn parse_csc_measurement(data: Vec<u8>) -> CscMeasurement {
     CscMeasurement {
         wheel: if has_wheel_data {
             Some(RevolutionData {
-                revolution_count: ((data[wheel_index + 3] as u32) << 24)
-                    + ((data[wheel_index + 2] as u32) << 16)
-                    + ((data[wheel_index + 1] as u32) << 8)
-                    + (data[wheel_index] as u32),
-                last_revolution_event_time: ((((data[wheel_index + 4 + 1] as u16) << 8)
-                    + (data[wheel_index + 4] as u16))
-                    as f64)
+                revolution_count: u32::from_le_bytes([
+                    data[wheel_index],
+                    data[wheel_index + 1],
+                    data[wheel_index + 2],
+                    data[wheel_index + 3],
+                ]),
+                last_revolution_event_time: (u16::from_le_bytes([
+                    data[wheel_index + 4],
+                    data[wheel_index + 4 + 1],
+                ]) as f64)
                     / 1024.0,
             })
         } else {
@@ -217,11 +220,14 @@ fn parse_csc_measurement(data: Vec<u8>) -> CscMeasurement {
         },
         crank: if has_crank_data {
             Some(RevolutionData {
-                revolution_count: ((data[crank_index + 1] as u32) << 8)
-                    + (data[crank_index] as u32),
-                last_revolution_event_time: ((((data[crank_index + 2 + 1] as u16) << 8)
-                    + (data[crank_index + 2] as u16))
-                    as f64)
+                revolution_count: u32::from_le_bytes([
+                    data[crank_index],
+                    data[crank_index + 1],
+                    0,
+                    0,
+                ]),
+                last_revolution_event_time: u16::from_le_bytes([data[crank_index + 2], data[crank_index + 3]])
+                    as f64
                     / 1024.0,
             })
         } else {
