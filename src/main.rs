@@ -1,10 +1,10 @@
 extern crate btleplug;
 
-use std::io::{stdout,Write};
+use btleplug::api::{Central, Peripheral, UUID};
+use btleplug::bluez::manager::Manager;
+use std::io::{stdout, Write};
 use std::thread;
 use std::time::Duration;
-use btleplug::bluez::manager::Manager;
-use btleplug::api::{UUID, Central, Peripheral};
 
 pub fn main() {
     println!("Getting Manager...");
@@ -31,9 +31,16 @@ pub fn main() {
 
     println!("{:?}", central.peripherals());
 
-    let kickr = central.peripherals().into_iter()
-        .find(|p| p.properties().local_name.iter()
-              .any(|name| name.contains("KICKR"))).unwrap();
+    let kickr = central
+        .peripherals()
+        .into_iter()
+        .find(|p| {
+            p.properties()
+                .local_name
+                .iter()
+                .any(|name| name.contains("KICKR"))
+        })
+        .unwrap();
     println!("Found KICKR");
     stdout().flush().unwrap();
 
@@ -46,7 +53,11 @@ pub fn main() {
     stdout().flush().unwrap();
 
     println!("{:?}", kickr.characteristics());
-    let power_measurement = kickr.characteristics().into_iter().find(|c| c.uuid == UUID::B16(0x2A63)).unwrap();
+    let power_measurement = kickr
+        .characteristics()
+        .into_iter()
+        .find(|c| c.uuid == UUID::B16(0x2A63))
+        .unwrap();
 
     kickr.subscribe(&power_measurement).unwrap();
     println!("Subscribed to power measure");
@@ -56,7 +67,7 @@ pub fn main() {
         println!("{:?}", n);
         stdout().flush().unwrap();
     }));
-    
+
     loop {}
 }
 
