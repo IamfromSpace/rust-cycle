@@ -1,6 +1,6 @@
 extern crate btleplug;
 
-use btleplug::api::{Central, Peripheral, UUID};
+use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::io::{stdout, Write};
 use std::thread;
@@ -31,6 +31,41 @@ pub fn main() {
 
     println!("{:?}", central.peripherals());
 
+    // Connect to HRM and print its parsed notifications
+    let hrm = central
+        .peripheral(BDAddr {
+            address: [0xA0, 0x26, 0xBD, 0xF7, 0xB2, 0xED],
+        })
+        .unwrap();
+    println!("Found HRM");
+    stdout().flush().unwrap();
+
+    hrm.connect().unwrap();
+    println!("Connected to HRM");
+    stdout().flush().unwrap();
+
+    hrm.discover_characteristics().unwrap();
+    println!("All characteristics discovered");
+    stdout().flush().unwrap();
+
+    println!("{:?}", hrm.characteristics());
+    let hr_measurement = hrm
+        .characteristics()
+        .into_iter()
+        .find(|c| c.uuid == UUID::B16(0x2A37))
+        .unwrap();
+
+    hrm.subscribe(&hr_measurement).unwrap();
+    println!("Subscribed to hr measure");
+    stdout().flush().unwrap();
+
+    hrm.on_notification(Box::new(|n| {
+        println!("{:?}", parse_hrm(n.value));
+        stdout().flush().unwrap();
+    }));
+
+    /*
+    // Connect to Kickr and print its raw notifications
     let kickr = central
         .peripherals()
         .into_iter()
@@ -41,6 +76,7 @@ pub fn main() {
                 .any(|name| name.contains("KICKR"))
         })
         .unwrap();
+
     println!("Found KICKR");
     stdout().flush().unwrap();
 
@@ -67,6 +103,7 @@ pub fn main() {
         println!("{:?}", n);
         stdout().flush().unwrap();
     }));
+    */
 
     loop {}
 }
