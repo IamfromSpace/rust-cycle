@@ -542,4 +542,92 @@ mod tests {
             parse_csc_measurement(vec!(0))
         );
     }
+
+    use super::parse_cycling_power_measurement;
+    use super::AccumulatedTorqueSource;
+    use super::CyclingPowerMeasurement;
+
+    #[test]
+    fn parse_cpm_with_balance_torque_wheel_and_crank() {
+        assert_eq!(
+            CyclingPowerMeasurement {
+                instantaneous_power: 0x0102,
+                pedal_power_balance_percent: Some(49.5),
+                accumulated_torque: Some((AccumulatedTorqueSource::Wheel, 0x0201 as f64 / 32.0)),
+                wheel_revolution_data: Some(RevolutionData {
+                    revolution_count: 0x04030201,
+                    last_revolution_event_time: 0x0201 as f64 / 2048.0,
+                }),
+                crank_revolution_data: Some(RevolutionData {
+                    revolution_count: 0x0201,
+                    last_revolution_event_time: 0x0201 as f64 / 1024.0,
+                }),
+            },
+            parse_cycling_power_measurement(vec!(
+                0b110101, 0, 2, 1, 99, 1, 2, 1, 2, 3, 4, 1, 2, 1, 2, 1, 2
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_cpm_with_accumulated_crank_torque() {
+        assert_eq!(
+            CyclingPowerMeasurement {
+                instantaneous_power: 0x0102,
+                pedal_power_balance_percent: None,
+                accumulated_torque: Some((AccumulatedTorqueSource::Crank, 0x0201 as f64 / 32.0)),
+                wheel_revolution_data: None,
+                crank_revolution_data: Some(RevolutionData {
+                    revolution_count: 0x0201,
+                    last_revolution_event_time: 0x0201 as f64 / 1024.0,
+                }),
+            },
+            parse_cycling_power_measurement(vec!(0b101100, 0, 2, 1, 1, 2, 1, 2, 1, 2))
+        );
+    }
+
+    #[test]
+    fn parse_cpm_with_accumulated_wheel_torque() {
+        assert_eq!(
+            CyclingPowerMeasurement {
+                instantaneous_power: 0x0102,
+                pedal_power_balance_percent: None,
+                accumulated_torque: Some((AccumulatedTorqueSource::Wheel, 0x0201 as f64 / 32.0)),
+                wheel_revolution_data: Some(RevolutionData {
+                    revolution_count: 0x04030201,
+                    last_revolution_event_time: 0x0201 as f64 / 2048.0,
+                }),
+                crank_revolution_data: None,
+            },
+            parse_cycling_power_measurement(vec!(0b10100, 0, 2, 1, 1, 2, 1, 2, 3, 4, 1, 2))
+        );
+    }
+
+    #[test]
+    fn parse_cpm_with_pedal_power_balance() {
+        assert_eq!(
+            CyclingPowerMeasurement {
+                instantaneous_power: 0x0102,
+                pedal_power_balance_percent: Some(49.5),
+                accumulated_torque: None,
+                wheel_revolution_data: None,
+                crank_revolution_data: None,
+            },
+            parse_cycling_power_measurement(vec!(1, 0, 2, 1, 99))
+        );
+    }
+
+    #[test]
+    fn parse_cpm_empty() {
+        assert_eq!(
+            CyclingPowerMeasurement {
+                instantaneous_power: 0x0102,
+                pedal_power_balance_percent: None,
+                accumulated_torque: None,
+                wheel_revolution_data: None,
+                crank_revolution_data: None,
+            },
+            parse_cycling_power_measurement(vec!(0, 0, 2, 1))
+        );
+    }
 }
