@@ -5,3 +5,4 @@ authors = ["Nathan Fairhurst. <nathan.p3pictures@gmail.com>"]
 
 [dependencies]
 btleplug = "0.4"
+ansi-escapes = "0.1"

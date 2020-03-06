@@ -1,5 +1,7 @@
+extern crate ansi_escapes;
 extern crate btleplug;
 
+use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::io::{stdout, Write};
@@ -60,7 +62,11 @@ pub fn main() {
     stdout().flush().unwrap();
 
     hrm.on_notification(Box::new(|n| {
-        println!("{:?}", parse_hrm(n.value));
+        print!(
+            "{}HR {:?}bpm ",
+            CursorTo::AbsoluteX(0),
+            parse_hrm(n.value).bpm
+        );
         stdout().flush().unwrap();
     }));
 
@@ -100,7 +106,11 @@ pub fn main() {
     stdout().flush().unwrap();
 
     kickr.on_notification(Box::new(|n| {
-        println!("{:?}", n);
+        print!(
+            "{}Power {:?}W   ",
+            CursorTo::AbsoluteX(16),
+            parse_cycling_power_measurement(n.value).instantaneous_power
+        );
         stdout().flush().unwrap();
     }));
     */
