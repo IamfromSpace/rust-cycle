@@ -1,28 +1,57 @@
 extern crate ansi_escapes;
 extern crate bincode;
 extern crate btleplug;
+extern crate serde;
 extern crate sled;
 
 use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
-use std::convert::TryInto;
+use serde::{Deserialize, Serialize};
+use std::convert::{From, TryInto};
 use std::io::{stdout, Write};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+// SUUID is equivalent to a UUID, however it is serializable so we can save its
+// value to our sled.
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub enum SUUID {
+    B16(u16),
+    B128([u8; 16]),
+}
+
+impl From<UUID> for SUUID {
+    fn from(u: UUID) -> SUUID {
+        match u {
+            UUID::B16(x) => SUUID::B16(x),
+            UUID::B128(x) => SUUID::B128(x),
+        }
+    }
+}
+
+impl From<SUUID> for UUID {
+    fn from(u: SUUID) -> UUID {
+        match u {
+            SUUID::B16(x) => UUID::B16(x),
+            SUUID::B128(x) => UUID::B128(x),
+        }
+    }
+}
 
 // Helper function to demonstrate consumption of a DB
 fn print_db(db: &sled::Tree, key_decoder: &bincode::Config) -> () {
     for x in db.iter() {
         let (k, v) = x.unwrap();
         let z: Vec<u8> = (*k).try_into().unwrap();
-        let (session_key, d): (u64, Duration) = key_decoder.deserialize(&z).unwrap();
+        let (session_key, d, suuid): (u64, Duration, SUUID) = key_decoder.deserialize(&z).unwrap();
         println!(
-            "{:?}:{:?} = {:?}",
+            "{:?}-{:?}-{:?} = {:?}",
             UNIX_EPOCH
                 .checked_add(Duration::from_secs(session_key))
                 .unwrap(),
             d,
+            UUID::from(suuid),
             parse_hrm(&(*v).try_into().unwrap())
         );
     }
@@ -109,7 +138,7 @@ pub fn main() {
         );
         stdout().flush().unwrap();
         let key = key_encoder_hrm
-            .serialize(&(session_key, start.elapsed()))
+            .serialize(&(session_key, start.elapsed(), SUUID::from(n.uuid)))
             .unwrap();
         db_hrm.insert(key, n.value).unwrap();
     }));
@@ -159,7 +188,7 @@ pub fn main() {
         );
         stdout().flush().unwrap();
         let key = key_encoder_kickr
-            .serialize(&(session_key, start.elapsed()))
+            .serialize(&(session_key, start.elapsed(), SUUID::from(n.uuid)))
             .unwrap();
         db_kickr.insert(key, n.value).unwrap();
     }));
