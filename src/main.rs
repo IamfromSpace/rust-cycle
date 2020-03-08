@@ -65,7 +65,7 @@ pub fn main() {
         print!(
             "{}HR {:?}bpm ",
             CursorTo::AbsoluteX(0),
-            parse_hrm(n.value).bpm
+            parse_hrm(&n.value).bpm
         );
         stdout().flush().unwrap();
     }));
@@ -109,7 +109,7 @@ pub fn main() {
         print!(
             "{}Power {:?}W   ",
             CursorTo::AbsoluteX(16),
-            parse_cycling_power_measurement(n.value).instantaneous_power
+            parse_cycling_power_measurement(&n.value).instantaneous_power
         );
         stdout().flush().unwrap();
     }));
@@ -143,7 +143,7 @@ pub struct HeartRateMeasurement {
 }
 
 // Notably, this function always assumes a valid input
-fn parse_hrm(data: Vec<u8>) -> HeartRateMeasurement {
+fn parse_hrm(data: &Vec<u8>) -> HeartRateMeasurement {
     let is_16_bit = data[0] & 1 == 1;
     let has_sensor_detection = data[0] & 0b100 == 0b100;
     let has_energy_expended = data[0] & 0b1000 == 0b1000;
@@ -204,7 +204,7 @@ pub struct CscMeasurement {
 }
 
 // Notably, this function always assumes a valid input
-fn parse_csc_measurement(data: Vec<u8>) -> CscMeasurement {
+fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
     let has_wheel_data = data[0] & 1 == 1;
     let has_crank_data = data[0] & 0b10 == 0b10;
     let wheel_index = 1;
@@ -272,7 +272,7 @@ pub struct CyclingPowerMeasurement {
 }
 
 // Notably, this function always assumes a valid input
-fn parse_cycling_power_measurement(data: Vec<u8>) -> CyclingPowerMeasurement {
+fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasurement {
     let has_pedal_power_balance = data[0] & 1 == 1;
     let has_accumulated_torque = data[0] & 0b100 == 0b100;
     let has_wheel_data = data[0] & 0b10000 == 0b10000;
@@ -359,7 +359,7 @@ mod tests {
                 energy_expended: Some(523),
                 rr_intervals: vec!(266.0 / 1024.0)
             },
-            parse_hrm(vec!(0b11001, 70, 0, 11, 2, 10, 1))
+            parse_hrm(&vec!(0b11001, 70, 0, 11, 2, 10, 1))
         );
     }
 
@@ -372,7 +372,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: vec!(266.0 / 1024.0)
             },
-            parse_hrm(vec!(0b10001, 70, 0, 10, 1))
+            parse_hrm(&vec!(0b10001, 70, 0, 10, 1))
         );
     }
 
@@ -385,7 +385,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: vec!(266.0 / 1024.0, 523.0 / 1024.0, 780.0 / 1024.0)
             },
-            parse_hrm(vec!(0b10000, 70, 10, 1, 11, 2, 12, 3))
+            parse_hrm(&vec!(0b10000, 70, 10, 1, 11, 2, 12, 3))
         );
     }
 
@@ -398,7 +398,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: vec!(266.0 / 1024.0)
             },
-            parse_hrm(vec!(0b10000, 70, 10, 1))
+            parse_hrm(&vec!(0b10000, 70, 10, 1))
         );
     }
 
@@ -411,7 +411,7 @@ mod tests {
                 energy_expended: Some(266),
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(0b1001, 70, 0, 10, 1))
+            parse_hrm(&vec!(0b1001, 70, 0, 10, 1))
         );
     }
 
@@ -424,7 +424,7 @@ mod tests {
                 energy_expended: Some(266),
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(0b1000, 70, 10, 1))
+            parse_hrm(&vec!(0b1000, 70, 10, 1))
         );
     }
 
@@ -437,7 +437,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(0b100, 70))
+            parse_hrm(&vec!(0b100, 70))
         );
     }
 
@@ -450,7 +450,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(0b110, 70))
+            parse_hrm(&vec!(0b110, 70))
         );
     }
 
@@ -463,7 +463,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(1, 10, 1))
+            parse_hrm(&vec!(1, 10, 1))
         );
     }
 
@@ -476,7 +476,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(1, 70, 0))
+            parse_hrm(&vec!(1, 70, 0))
         );
     }
 
@@ -489,7 +489,7 @@ mod tests {
                 energy_expended: None,
                 rr_intervals: Vec::with_capacity(0),
             },
-            parse_hrm(vec!(0, 70))
+            parse_hrm(&vec!(0, 70))
         );
     }
 
@@ -510,7 +510,7 @@ mod tests {
                     last_revolution_event_time: 0x0201 as f64 / 1024.0,
                 }),
             },
-            parse_csc_measurement(vec!(3, 1, 2, 3, 4, 1, 2, 1, 2, 1, 2))
+            parse_csc_measurement(&vec!(3, 1, 2, 3, 4, 1, 2, 1, 2, 1, 2))
         );
     }
 
@@ -524,7 +524,7 @@ mod tests {
                     last_revolution_event_time: 0x0201 as f64 / 1024.0,
                 }),
             },
-            parse_csc_measurement(vec!(2, 1, 2, 1, 2))
+            parse_csc_measurement(&vec!(2, 1, 2, 1, 2))
         );
     }
 
@@ -538,7 +538,7 @@ mod tests {
                 }),
                 crank: None,
             },
-            parse_csc_measurement(vec!(1, 1, 2, 3, 4, 1, 2))
+            parse_csc_measurement(&vec!(1, 1, 2, 3, 4, 1, 2))
         );
     }
 
@@ -549,7 +549,7 @@ mod tests {
                 wheel: None,
                 crank: None,
             },
-            parse_csc_measurement(vec!(0))
+            parse_csc_measurement(&vec!(0))
         );
     }
 
@@ -573,7 +573,7 @@ mod tests {
                     last_revolution_event_time: 0x0201 as f64 / 1024.0,
                 }),
             },
-            parse_cycling_power_measurement(vec!(
+            parse_cycling_power_measurement(&vec!(
                 0b110101, 0, 2, 1, 99, 1, 2, 1, 2, 3, 4, 1, 2, 1, 2, 1, 2
             ))
         );
@@ -592,7 +592,7 @@ mod tests {
                     last_revolution_event_time: 0x0201 as f64 / 1024.0,
                 }),
             },
-            parse_cycling_power_measurement(vec!(0b101100, 0, 2, 1, 1, 2, 1, 2, 1, 2))
+            parse_cycling_power_measurement(&vec!(0b101100, 0, 2, 1, 1, 2, 1, 2, 1, 2))
         );
     }
 
@@ -609,7 +609,7 @@ mod tests {
                 }),
                 crank_revolution_data: None,
             },
-            parse_cycling_power_measurement(vec!(0b10100, 0, 2, 1, 1, 2, 1, 2, 3, 4, 1, 2))
+            parse_cycling_power_measurement(&vec!(0b10100, 0, 2, 1, 1, 2, 1, 2, 3, 4, 1, 2))
         );
     }
 
@@ -623,7 +623,7 @@ mod tests {
                 wheel_revolution_data: None,
                 crank_revolution_data: None,
             },
-            parse_cycling_power_measurement(vec!(1, 0, 2, 1, 99))
+            parse_cycling_power_measurement(&vec!(1, 0, 2, 1, 99))
         );
     }
 
@@ -637,7 +637,7 @@ mod tests {
                 wheel_revolution_data: None,
                 crank_revolution_data: None,
             },
-            parse_cycling_power_measurement(vec!(0, 0, 2, 1))
+            parse_cycling_power_measurement(&vec!(0, 0, 2, 1))
         );
     }
 }
