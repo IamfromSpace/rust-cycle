@@ -115,7 +115,7 @@ pub fn main() {
     }));
     */
 
-    loop {}
+    thread::park();
 }
 
 // A Struct that does not care about bit compression
