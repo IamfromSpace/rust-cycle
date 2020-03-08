@@ -1,14 +1,52 @@
 extern crate ansi_escapes;
+extern crate bincode;
 extern crate btleplug;
+extern crate sled;
 
 use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
+use std::convert::TryInto;
 use std::io::{stdout, Write};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+// Helper function to demonstrate consumption of a DB
+fn print_db(db: &sled::Tree, key_decoder: &bincode::Config) -> () {
+    for x in db.iter() {
+        let (k, v) = x.unwrap();
+        let z: Vec<u8> = (*k).try_into().unwrap();
+        let (session_key, d): (u64, Duration) = key_decoder.deserialize(&z).unwrap();
+        println!(
+            "{:?}:{:?} = {:?}",
+            UNIX_EPOCH
+                .checked_add(Duration::from_secs(session_key))
+                .unwrap(),
+            d,
+            parse_hrm(&(*v).try_into().unwrap())
+        );
+    }
+}
 
 pub fn main() {
+    let mut key_coder = bincode::config();
+    let key_coder = key_coder.big_endian();
+    let db = sled::open(".rust-cycle.sled").unwrap();
+
+    print_db(&db, &key_coder);
+
+    // We want instant, because we want this to be monotonic. We don't want
+    // clock drift/corrections to cause events to be processed out of order.
+    let start = Instant::now();
+    // This won't fail unless the clock is before epoch, which sounds like a
+    // bigger problem
+    let session_key = u64::to_be_bytes(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    );
+
     println!("Getting Manager...");
     stdout().flush().unwrap();
 
@@ -61,13 +99,19 @@ pub fn main() {
     println!("Subscribed to hr measure");
     stdout().flush().unwrap();
 
-    hrm.on_notification(Box::new(|n| {
+    let db_hrm = db.clone();
+    let key_encoder_hrm = key_coder.clone();
+    hrm.on_notification(Box::new(move |n| {
         print!(
             "{}HR {:?}bpm ",
             CursorTo::AbsoluteX(0),
             parse_hrm(&n.value).bpm
         );
         stdout().flush().unwrap();
+        let key = key_encoder_hrm
+            .serialize(&(session_key, start.elapsed()))
+            .unwrap();
+        db_hrm.insert(key, n.value).unwrap();
     }));
 
     /*
@@ -105,13 +149,19 @@ pub fn main() {
     println!("Subscribed to power measure");
     stdout().flush().unwrap();
 
-    kickr.on_notification(Box::new(|n| {
+    let db_kickr = db.clone();
+    let key_encoder_kickr = key_coder.clone();
+    kickr.on_notification(Box::new(move |n| {
         print!(
             "{}Power {:?}W   ",
             CursorTo::AbsoluteX(16),
             parse_cycling_power_measurement(&n.value).instantaneous_power
         );
         stdout().flush().unwrap();
+        let key = key_encoder_kickr
+            .serialize(&(session_key, start.elapsed()))
+            .unwrap();
+        db_kickr.insert(key, n.value).unwrap();
     }));
     */
 
