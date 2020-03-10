@@ -1,9 +1,3 @@
-extern crate ansi_escapes;
-extern crate bincode;
-extern crate btleplug;
-extern crate serde;
-extern crate sled;
-
 use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;

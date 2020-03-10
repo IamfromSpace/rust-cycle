@@ -2,6 +2,7 @@
 name = "rust-cycle"
 version = "0.1.0"
 authors = ["Nathan Fairhurst. <nathan.p3pictures@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 bincode = "1.2"
