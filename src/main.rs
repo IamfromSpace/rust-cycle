@@ -424,6 +424,182 @@ fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasurement {
     }
 }
 
+// This is just a quick port of the original JS I had written--there's room for
+// improvement
+mod write_fit {
+    pub struct FitRecord {
+        // We use the same bitdepth, but not the same epoch
+        seconds_since_unix_epoch: u32,
+        // Wattage
+        power: Option<u16>,
+        // BPM
+        heart_rate: Option<u8>,
+        // RPM
+        cadence: Option<u8>,
+    }
+
+    fn make_header(length: usize) -> Vec<u8> {
+        vec![
+            // Header length
+            12,
+            // protocol version
+            0x20,
+            // profile version (little endian)
+            0xeb,
+            0x07,
+            // number of bytes excluding header and checksum (little endian)
+            length as u8 & 0xff,
+            (length >> 8) as u8 & 0xff,
+            (length >> 16) as u8 & 0xff,
+            (length >> 24) as u8 & 0xff,
+            // ASCI for .FIT
+            0x2e,
+            0x46,
+            0x49,
+            0x54,
+        ]
+    }
+
+    fn record_to_bytes(record: &FitRecord) -> Vec<u8> {
+        let ts = record.seconds_since_unix_epoch - 631065600;
+        let mut bytes = vec![
+            0,
+            // Time
+            ts as u8 & 0xff,
+            (ts >> 8) as u8 & 0xff,
+            (ts >> 16) as u8 & 0xff,
+            (ts >> 24) as u8 & 0xff,
+        ];
+
+        if let Some(p) = record.power {
+            bytes.push(p as u8 & 0xff);
+            bytes.push((p >> 8) as u8 & 0xff);
+        };
+
+        if let Some(hr) = record.heart_rate {
+            bytes.push(hr);
+        }
+
+        if let Some(c) = record.cadence {
+            bytes.push(c);
+        }
+
+        bytes
+    }
+
+    fn record_def(record: &FitRecord) -> Vec<u8> {
+        let field_count = 1
+            + if let Some(_) = record.power { 1 } else { 0 }
+            + if let Some(_) = record.heart_rate {
+                1
+            } else {
+                0
+            }
+            + if let Some(_) = record.cadence { 1 } else { 0 };
+
+        let mut bytes = vec![
+            // Field definition for message type 0
+            64,
+            // Reserved
+            0,
+            // Little Endian
+            0,
+            // Global Message Number (20 is for a typical data record)
+            20,
+            0,
+            // Number of fields
+            field_count,
+            // Timestamp (field definition number, byte count, default type (u32))
+            253,
+            4,
+            0x86,
+        ];
+
+        let power_def = vec![
+            // Power (field definition number, byte count, default type (u16))
+            7, 2, 0x84,
+        ];
+        let hr_def = vec![
+            // HeartRate (field definition number, byte count, default type (u8))
+            3, 1, 2,
+        ];
+        let cadence_def = vec![
+            // Cadence (field definition number, byte count, default type (u8))
+            4, 1, 2,
+        ];
+
+        if let Some(_) = record.power {
+            bytes.extend(power_def);
+        };
+
+        if let Some(_) = record.heart_rate {
+            bytes.extend(hr_def);
+        }
+
+        if let Some(_) = record.cadence {
+            bytes.extend(cadence_def);
+        }
+
+        bytes
+    }
+
+    fn calculate_crc(blob: &Vec<u8>) -> u16 {
+        let crc_table = [
+            0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401, 0xa001, 0x6c00, 0x7800,
+            0xb401, 0x5000, 0x9c01, 0x8801, 0x4400,
+        ];
+
+        let mut crc = 0;
+        for i in 0..blob.len() {
+            let byte = blob[i] as u16;
+            let mut tmp = crc_table[(crc & 0xf) as usize];
+            crc = (crc >> 4) & 0x0fff;
+            crc = crc ^ tmp ^ crc_table[(byte & 0xf) as usize];
+            tmp = crc_table[(crc & 0xf) as usize];
+            crc = (crc >> 4) & 0x0fff;
+            crc = crc ^ tmp ^ crc_table[((byte >> 4) & 0xf) as usize];
+        }
+
+        crc
+    }
+
+    fn to_file_inner(list: &Vec<FitRecord>) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut last_def: Option<Vec<u8>> = None;
+
+        for record in list {
+            let new_def = record_def(record);
+            match last_def {
+                Some(ld) => {
+                    if ld != new_def {
+                        last_def = Some(new_def.clone());
+                        bytes.extend(new_def)
+                    } else {
+                        last_def = Some(ld);
+                    }
+                }
+                None => {
+                    last_def = Some(new_def.clone());
+                    bytes.extend(new_def);
+                }
+            }
+
+            bytes.extend(record_to_bytes(record));
+        }
+
+        bytes
+    }
+
+    pub fn to_file(list: &Vec<FitRecord>) -> Vec<u8> {
+        let record_buffer = to_file_inner(list);
+        let mut bytes = make_header(record_buffer.len());
+        bytes.extend(record_buffer);
+        let crc = calculate_crc(&bytes);
+        bytes.extend(vec![(crc & 0xff) as u8, ((crc >> 8) as u8) & 0xff]);
+        bytes
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_hrm;
