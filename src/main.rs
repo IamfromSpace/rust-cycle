@@ -10,7 +10,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 pub fn main() {
     let db = char_db::open_default().unwrap();
 
-    db.print_db();
+    let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
+    println!("most recent: {:?}", most_recent_session);
+    for e in db.get_session_entries(most_recent_session) {
+        let (k,v) = e.unwrap();
+        println!("{:?} = {:?}", k, parse_hrm(&v));
+    }
 
     // We want instant, because we want this to be monotonic. We don't want
     // clock drift/corrections to cause events to be processed out of order.
