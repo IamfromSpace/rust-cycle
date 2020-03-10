@@ -598,6 +598,118 @@ mod write_fit {
         bytes.extend(vec![(crc & 0xff) as u8, ((crc >> 8) as u8) & 0xff]);
         bytes
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::to_file;
+        use super::FitRecord;
+
+        #[test]
+        fn to_file_for_empty_vec() {
+            assert_eq!(
+                vec!(
+                    0x0c, 0x20, 0xeb, 0x07, 0x00, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x36,
+                    0xc1
+                ),
+                to_file(&Vec::new()),
+            );
+        }
+
+        #[test]
+        fn to_file_for_single_record() {
+            assert_eq!(
+                vec!(
+                    0x0c, 0x20, 0xeb, 0x07, 0x1b, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40,
+                    0x00, 0x00, 0x14, 0x00, 0x04, 0xfd, 0x04, 0x86, 0x07, 0x02, 0x84, 0x03, 0x01,
+                    0x02, 0x04, 0x01, 0x02, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0xb4, 0x00, 0x78, 0x5a,
+                    0xe4, 0xc1
+                ),
+                to_file(&vec!(FitRecord {
+                    seconds_since_unix_epoch: 1583801576,
+                    power: Some(180),
+                    heart_rate: Some(120),
+                    cadence: Some(90)
+                })),
+            );
+        }
+
+        #[test]
+        fn to_file_for_two_records() {
+            assert_eq!(
+                vec!(
+                    0x0c, 0x20, 0xeb, 0x07, 0x24, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40,
+                    0x00, 0x00, 0x14, 0x00, 0x04, 0xfd, 0x04, 0x86, 0x07, 0x02, 0x84, 0x03, 0x01,
+                    0x02, 0x04, 0x01, 0x02, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0xb4, 0x00, 0x78, 0x5a,
+                    0x00, 0xe9, 0x98, 0xc9, 0x38, 0xb5, 0x00, 0x79, 0x5b, 0x7b, 0x97
+                ),
+                to_file(&vec!(
+                    FitRecord {
+                        seconds_since_unix_epoch: 1583801576,
+                        power: Some(180),
+                        heart_rate: Some(120),
+                        cadence: Some(90)
+                    },
+                    FitRecord {
+                        seconds_since_unix_epoch: 1583801577,
+                        power: Some(181),
+                        heart_rate: Some(121),
+                        cadence: Some(91)
+                    }
+                )),
+            );
+        }
+
+        #[test]
+        fn to_file_for_single_record_without_power() {
+            assert_eq!(
+                vec!(
+                    0x0c, 0x20, 0xeb, 0x07, 0x16, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40,
+                    0x00, 0x00, 0x14, 0x00, 0x03, 0xfd, 0x04, 0x86, 0x03, 0x01, 0x02, 0x04, 0x01,
+                    0x02, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0x78, 0x5a, 0x9b, 0x59
+                ),
+                to_file(&vec!(FitRecord {
+                    seconds_since_unix_epoch: 1583801576,
+                    power: None,
+                    heart_rate: Some(120),
+                    cadence: Some(90)
+                })),
+            );
+        }
+
+        #[test]
+        fn to_file_for_single_record_without_heart_rate() {
+            assert_eq!(
+                vec!(
+                    0x0c, 0x20, 0xeb, 0x07, 0x17, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40,
+                    0x00, 0x00, 0x14, 0x00, 0x03, 0xfd, 0x04, 0x86, 0x07, 0x02, 0x84, 0x04, 0x01,
+                    0x02, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0xb4, 0x00, 0x5a, 0xf9, 0xbe
+                ),
+                to_file(&vec!(FitRecord {
+                    seconds_since_unix_epoch: 1583801576,
+                    power: Some(180),
+                    heart_rate: None,
+                    cadence: Some(90)
+                })),
+            );
+        }
+
+        #[test]
+        fn to_file_for_single_record_without_cadence() {
+            assert_eq!(
+                vec!(
+                    0x0c, 0x20, 0xeb, 0x07, 0x17, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40,
+                    0x00, 0x00, 0x14, 0x00, 0x03, 0xfd, 0x04, 0x86, 0x07, 0x02, 0x84, 0x03, 0x01,
+                    0x02, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0xb4, 0x00, 0x78, 0x63, 0xd3
+                ),
+                to_file(&vec!(FitRecord {
+                    seconds_since_unix_epoch: 1583801576,
+                    power: Some(180),
+                    heart_rate: Some(120),
+                    cadence: None
+                })),
+            );
+        }
+    }
 }
 
 #[cfg(test)]
