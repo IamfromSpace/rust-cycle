@@ -1,74 +1,26 @@
+mod char_db;
+
 use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
-use serde::{Deserialize, Serialize};
-use std::convert::{From, TryInto};
 use std::io::{stdout, Write};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-// SUUID is equivalent to a UUID, however it is serializable so we can save its
-// value to our sled.
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub enum SUUID {
-    B16(u16),
-    B128([u8; 16]),
-}
-
-impl From<UUID> for SUUID {
-    fn from(u: UUID) -> SUUID {
-        match u {
-            UUID::B16(x) => SUUID::B16(x),
-            UUID::B128(x) => SUUID::B128(x),
-        }
-    }
-}
-
-impl From<SUUID> for UUID {
-    fn from(u: SUUID) -> UUID {
-        match u {
-            SUUID::B16(x) => UUID::B16(x),
-            SUUID::B128(x) => UUID::B128(x),
-        }
-    }
-}
-
-// Helper function to demonstrate consumption of a DB
-fn print_db(db: &sled::Tree, key_decoder: &bincode::Config) -> () {
-    for x in db.iter() {
-        let (k, v) = x.unwrap();
-        let z: Vec<u8> = (*k).try_into().unwrap();
-        let (session_key, d, suuid): (u64, Duration, SUUID) = key_decoder.deserialize(&z).unwrap();
-        println!(
-            "{:?}-{:?}-{:?} = {:?}",
-            UNIX_EPOCH
-                .checked_add(Duration::from_secs(session_key))
-                .unwrap(),
-            d,
-            UUID::from(suuid),
-            parse_hrm(&(*v).try_into().unwrap())
-        );
-    }
-}
-
 pub fn main() {
-    let mut key_coder = bincode::config();
-    let key_coder = key_coder.big_endian();
-    let db = sled::open(".rust-cycle.sled").unwrap();
+    let db = char_db::open_default().unwrap();
 
-    print_db(&db, &key_coder);
+    db.print_db();
 
     // We want instant, because we want this to be monotonic. We don't want
     // clock drift/corrections to cause events to be processed out of order.
     let start = Instant::now();
     // This won't fail unless the clock is before epoch, which sounds like a
     // bigger problem
-    let session_key = u64::to_be_bytes(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-    );
+    let session_key = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
 
     println!("Getting Manager...");
     stdout().flush().unwrap();
@@ -123,7 +75,6 @@ pub fn main() {
     stdout().flush().unwrap();
 
     let db_hrm = db.clone();
-    let key_encoder_hrm = key_coder.clone();
     hrm.on_notification(Box::new(move |n| {
         print!(
             "{}HR {:?}bpm ",
@@ -131,10 +82,7 @@ pub fn main() {
             parse_hrm(&n.value).bpm
         );
         stdout().flush().unwrap();
-        let key = key_encoder_hrm
-            .serialize(&(session_key, start.elapsed(), SUUID::from(n.uuid)))
-            .unwrap();
-        db_hrm.insert(key, n.value).unwrap();
+        db_hrm.insert(session_key, start.elapsed(), n).unwrap();
     }));
 
     /*
@@ -173,7 +121,6 @@ pub fn main() {
     stdout().flush().unwrap();
 
     let db_kickr = db.clone();
-    let key_encoder_kickr = key_coder.clone();
     kickr.on_notification(Box::new(move |n| {
         print!(
             "{}Power {:?}W   ",
@@ -181,10 +128,7 @@ pub fn main() {
             parse_cycling_power_measurement(&n.value).instantaneous_power
         );
         stdout().flush().unwrap();
-        let key = key_encoder_kickr
-            .serialize(&(session_key, start.elapsed(), SUUID::from(n.uuid)))
-            .unwrap();
-        db_kickr.insert(key, n.value).unwrap();
+        db_kickr.insert(session_key, start.elapsed(), n).unwrap();
     }));
     */
 
