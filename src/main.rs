@@ -5,6 +5,7 @@ use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::fs::File;
 use std::io::{stdout, Write};
+use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -122,6 +123,57 @@ pub fn main() {
         db_kickr.insert(session_key, start.elapsed(), n).unwrap();
     }));
     */
+
+    // Connect to Cadence meter and print its raw notifications
+    let cadence_measure = central
+        .peripherals()
+        .into_iter()
+        .find(|p| {
+            p.properties()
+                .local_name
+                .iter()
+                .any(|name| name.contains("CADENCE"))
+        })
+        .unwrap();
+
+    println!("Found CADENCE");
+
+    cadence_measure.connect().unwrap();
+    println!("Connected to CADENCE");
+
+    cadence_measure.discover_characteristics().unwrap();
+    println!("All characteristics discovered");
+
+    let cadence_measurement = cadence_measure
+        .characteristics()
+        .into_iter()
+        .find(|c| c.uuid == UUID::B16(0x2A5B))
+        .unwrap();
+
+    cadence_measure.subscribe(&cadence_measurement).unwrap();
+    println!("Subscribed to cadence measure");
+
+    // Because the handler is a Fn vs FnMut, we can't mutate the environment
+    // that's moved into the closure.  As such, we use a mutex, since it's
+    // technically not "mutated"
+    let m_o_last_cadence_measure: Mutex<Option<CscMeasurement>> = Mutex::new(None);
+    let db_cadence_measure = db.clone();
+    cadence_measure.on_notification(Box::new(move |n| {
+        let csc_measure = parse_csc_measurement(&n.value);
+        let mut o_last_cadence_measure = m_o_last_cadence_measure.lock().unwrap();
+        if let Some(last_cadence_measure) = &*o_last_cadence_measure {
+            let a = last_cadence_measure.crank.as_ref().unwrap();
+            let b = csc_measure.crank.clone().unwrap();
+            if let Some(rpm) = overflow_protected_rpm(&a, &b) {
+                print!("{}Cadence {:?}rpm  ", CursorTo::AbsoluteX(32), rpm as u8);
+                stdout().flush().unwrap();
+            }
+        }
+        *o_last_cadence_measure = Some(csc_measure);
+        db_cadence_measure
+            .insert(session_key, start.elapsed(), n)
+            .unwrap();
+    }));
 
     thread::park();
 }
