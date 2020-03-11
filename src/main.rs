@@ -367,6 +367,90 @@ fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasurement {
     }
 }
 
+fn overflow_protected_rpm(a: &RevolutionData, b: &RevolutionData) -> Option<f64> {
+    if a.last_revolution_event_time == b.last_revolution_event_time {
+        None
+    } else {
+        let duration = if b.last_revolution_event_time > a.last_revolution_event_time {
+            b.last_revolution_event_time - a.last_revolution_event_time
+        } else {
+            0b100000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
+        };
+
+        let total_revolutions = if b.revolution_count > a.revolution_count {
+            b.revolution_count - a.revolution_count
+        } else {
+            0b100000 + b.revolution_count - a.revolution_count
+        };
+
+        Some(total_revolutions as f64 * 60.0 / duration)
+    }
+}
+
+fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
+    let mut last_power: u16 = 0;
+    let mut last_csc_measurement: Option<CscMeasurement> = None;
+    let mut record: Option<write_fit::FitRecord> = None;
+    let mut records = Vec::new();
+    let empty_record = |t| write_fit::FitRecord {
+        seconds_since_unix_epoch: t,
+        power: None,
+        heart_rate: None,
+        cadence: None,
+    };
+
+    for x in db.get_session_entries(session_key) {
+        if let Ok(((_, d, uuid), v)) = x {
+            let seconds_since_unix_epoch = (session_key + d.as_secs()) as u32;
+            let mut r = match record {
+                Some(mut r) => {
+                    if r.seconds_since_unix_epoch == seconds_since_unix_epoch {
+                        r
+                    } else {
+                        if let None = r.power {
+                            r.power = Some(last_power);
+                        }
+                        records.push(r);
+                        empty_record(seconds_since_unix_epoch)
+                    }
+                }
+                None => empty_record(seconds_since_unix_epoch),
+            };
+
+            record = Some(match uuid {
+                UUID::B16(0x2A37) => {
+                    r.heart_rate = Some(parse_hrm(&v).bpm as u8);
+                    r
+                }
+                UUID::B16(0x2A63) => {
+                    let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
+                    last_power = p;
+                    r.power = Some(p);
+                    r
+                }
+                UUID::B16(0x2A5B) => {
+                    let csc_measurement = parse_csc_measurement(&v);
+                    if let Some(lcm) = last_csc_measurement {
+                        let a = lcm.crank.unwrap();
+                        let b = csc_measurement.crank.clone().unwrap();
+                        if let Some(rpm) = overflow_protected_rpm(&a, &b) {
+                            r.cadence = Some(rpm as u8);
+                        }
+                    }
+                    last_csc_measurement = Some(csc_measurement);
+                    r
+                }
+                _ => {
+                    println!("UUID not matched");
+                    r
+                }
+            });
+        }
+    }
+
+    write_fit::to_file(&records)
+}
+
 // This is just a quick port of the original JS I had written--there's room for
 // improvement
 mod write_fit {
