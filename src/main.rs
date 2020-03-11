@@ -373,13 +373,13 @@ mod write_fit {
     #[derive(Debug, Clone, Eq, PartialEq)]
     pub struct FitRecord {
         // We use the same bitdepth, but not the same epoch
-        seconds_since_unix_epoch: u32,
+        pub seconds_since_unix_epoch: u32,
         // Wattage
-        power: Option<u16>,
+        pub power: Option<u16>,
         // BPM
-        heart_rate: Option<u8>,
+        pub heart_rate: Option<u8>,
         // RPM
-        cadence: Option<u8>,
+        pub cadence: Option<u8>,
     }
 
     fn make_header(length: usize) -> Vec<u8> {
