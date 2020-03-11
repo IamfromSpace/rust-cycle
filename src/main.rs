@@ -4,7 +4,7 @@ use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::fs::File;
-use std::io::Write;
+use std::io::{stdout, Write};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -77,6 +77,7 @@ pub fn main() {
             CursorTo::AbsoluteX(0),
             parse_hrm(&n.value).bpm
         );
+        stdout().flush().unwrap();
         db_hrm.insert(session_key, start.elapsed(), n).unwrap();
     }));
 
@@ -117,6 +118,7 @@ pub fn main() {
             CursorTo::AbsoluteX(16),
             parse_cycling_power_measurement(&n.value).instantaneous_power
         );
+        stdout().flush().unwrap();
         db_kickr.insert(session_key, start.elapsed(), n).unwrap();
     }));
     */
