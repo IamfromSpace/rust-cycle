@@ -47,8 +47,6 @@ pub fn main() {
     println!("Stopping scan...");
     central.stop_scan().unwrap();
 
-    println!("{:?}", central.peripherals());
-
     // Connect to HRM and print its parsed notifications
     let hrm = central
         .peripheral(BDAddr {
@@ -63,7 +61,6 @@ pub fn main() {
     hrm.discover_characteristics().unwrap();
     println!("All characteristics discovered");
 
-    println!("{:?}", hrm.characteristics());
     let hr_measurement = hrm
         .characteristics()
         .into_iter()
@@ -104,7 +101,6 @@ pub fn main() {
     kickr.discover_characteristics().unwrap();
     println!("All characteristics discovered");
 
-    println!("{:?}", kickr.characteristics());
     let power_measurement = kickr
         .characteristics()
         .into_iter()
