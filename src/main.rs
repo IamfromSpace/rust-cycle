@@ -4,7 +4,7 @@ use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::fs::File;
-use std::io::{stdout, Write};
+use std::io::Write;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -29,7 +29,6 @@ pub fn main() {
         .as_secs();
 
     println!("Getting Manager...");
-    stdout().flush().unwrap();
 
     let manager = Manager::new().unwrap();
 
@@ -41,13 +40,11 @@ pub fn main() {
     let central = adapter.connect().unwrap();
 
     println!("Starting Scan...");
-    stdout().flush().unwrap();
     central.start_scan().unwrap();
 
     thread::sleep(Duration::from_secs(5));
 
     println!("Stopping scan...");
-    stdout().flush().unwrap();
     central.stop_scan().unwrap();
 
     println!("{:?}", central.peripherals());
@@ -59,15 +56,12 @@ pub fn main() {
         })
         .unwrap();
     println!("Found HRM");
-    stdout().flush().unwrap();
 
     hrm.connect().unwrap();
     println!("Connected to HRM");
-    stdout().flush().unwrap();
 
     hrm.discover_characteristics().unwrap();
     println!("All characteristics discovered");
-    stdout().flush().unwrap();
 
     println!("{:?}", hrm.characteristics());
     let hr_measurement = hrm
@@ -78,7 +72,6 @@ pub fn main() {
 
     hrm.subscribe(&hr_measurement).unwrap();
     println!("Subscribed to hr measure");
-    stdout().flush().unwrap();
 
     let db_hrm = db.clone();
     hrm.on_notification(Box::new(move |n| {
@@ -87,7 +80,6 @@ pub fn main() {
             CursorTo::AbsoluteX(0),
             parse_hrm(&n.value).bpm
         );
-        stdout().flush().unwrap();
         db_hrm.insert(session_key, start.elapsed(), n).unwrap();
     }));
 
@@ -105,15 +97,12 @@ pub fn main() {
         .unwrap();
 
     println!("Found KICKR");
-    stdout().flush().unwrap();
 
     kickr.connect().unwrap();
     println!("Connected to KICKR");
-    stdout().flush().unwrap();
 
     kickr.discover_characteristics().unwrap();
     println!("All characteristics discovered");
-    stdout().flush().unwrap();
 
     println!("{:?}", kickr.characteristics());
     let power_measurement = kickr
@@ -124,7 +113,6 @@ pub fn main() {
 
     kickr.subscribe(&power_measurement).unwrap();
     println!("Subscribed to power measure");
-    stdout().flush().unwrap();
 
     let db_kickr = db.clone();
     kickr.on_notification(Box::new(move |n| {
@@ -133,7 +121,6 @@ pub fn main() {
             CursorTo::AbsoluteX(16),
             parse_cycling_power_measurement(&n.value).instantaneous_power
         );
-        stdout().flush().unwrap();
         db_kickr.insert(session_key, start.elapsed(), n).unwrap();
     }));
     */
