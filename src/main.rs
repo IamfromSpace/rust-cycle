@@ -3,6 +3,7 @@ mod char_db;
 use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
+use std::fs::File;
 use std::io::{stdout, Write};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -10,12 +11,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 pub fn main() {
     let db = char_db::open_default().unwrap();
 
+    // TODO: Should accept a cli flag for output mode vs session mode
     let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
-    println!("most recent: {:?}", most_recent_session);
-    for e in db.get_session_entries(most_recent_session) {
-        let (k,v) = e.unwrap();
-        println!("{:?} = {:?}", k, parse_hrm(&v));
-    }
+    File::create("workout.fit")
+        .unwrap()
+        .write_all(&db_session_to_fit(&db, most_recent_session)[..])
+        .unwrap();
 
     // We want instant, because we want this to be monotonic. We don't want
     // clock drift/corrections to cause events to be processed out of order.
