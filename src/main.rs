@@ -141,7 +141,7 @@ pub fn main() {
 }
 
 // A Struct that does not care about bit compression
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct HeartRateMeasurement {
     // since this is not in SI, its units are defined in its name.
     bpm: u16,
@@ -207,7 +207,7 @@ fn parse_hrm(data: &Vec<u8>) -> HeartRateMeasurement {
 }
 
 // A Struct that does not care about bit compression
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RevolutionData {
     // Total number of revolutions, this is years of data for wheels and cranks
     revolution_count: u32,
@@ -217,7 +217,7 @@ pub struct RevolutionData {
 }
 
 // A Struct that does not care about bit compression
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CscMeasurement {
     // Data about wheel rotations
     wheel: Option<RevolutionData>,
@@ -270,14 +270,14 @@ fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum AccumulatedTorqueSource {
     Wheel,
     Crank,
 }
 
 // A Struct that does not care about bit compression
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CyclingPowerMeasurement {
     instantaneous_power: i16,
     // Notably this is _truly_ a percent, not a rate
@@ -370,6 +370,7 @@ fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasurement {
 // This is just a quick port of the original JS I had written--there's room for
 // improvement
 mod write_fit {
+    #[derive(Debug, Clone, Eq, PartialEq)]
     pub struct FitRecord {
         // We use the same bitdepth, but not the same epoch
         seconds_since_unix_epoch: u32,
