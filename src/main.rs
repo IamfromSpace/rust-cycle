@@ -3,6 +3,8 @@ mod char_db;
 use ansi_escapes::CursorTo;
 use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
+use std::collections::BTreeSet;
+use std::env;
 use std::fs::File;
 use std::io::{stdout, Write};
 use std::mem;
@@ -10,220 +12,233 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub fn main() {
+    let args: BTreeSet<String> = env::args().collect();
+    let use_hr = args.is_empty() || args.contains("--hr");
+    let use_cadence = args.is_empty() || args.contains("--cadence");
+    let use_power = args.is_empty() || args.contains("--power");
+    let is_output_mode = args.is_empty() || args.contains("--output");
+    if !use_hr && !use_cadence && !use_power && !is_output_mode {
+        panic!("No metrics selected!");
+    }
+
     let db = char_db::open_default().unwrap();
 
-    // TODO: Should accept a cli flag for output mode vs session mode
-    let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
-    File::create("workout.fit")
-        .unwrap()
-        .write_all(&db_session_to_fit(&db, most_recent_session)[..])
-        .unwrap();
-
-    // We want instant, because we want this to be monotonic. We don't want
-    // clock drift/corrections to cause events to be processed out of order.
-    let start = Instant::now();
-    // This won't fail unless the clock is before epoch, which sounds like a
-    // bigger problem
-    let session_key = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    println!("Getting Manager...");
-
-    let manager = Manager::new().unwrap();
-
-    let mut adapter = manager.adapters().unwrap().into_iter().next().unwrap();
-
-    adapter = manager.down(&adapter).unwrap();
-    adapter = manager.up(&adapter).unwrap();
-
-    let central = adapter.connect().unwrap();
-
-    println!("Starting Scan...");
-    central.start_scan().unwrap();
-
-    thread::sleep(Duration::from_secs(5));
-
-    println!("Stopping scan...");
-    central.stop_scan().unwrap();
-
-    // Connect to HRM and print its parsed notifications
-    let hrm = central
-        .peripheral(BDAddr {
-            address: [0xA0, 0x26, 0xBD, 0xF7, 0xB2, 0xED],
-        })
-        .unwrap();
-    println!("Found HRM");
-
-    hrm.connect().unwrap();
-    println!("Connected to HRM");
-
-    hrm.discover_characteristics().unwrap();
-    println!("All characteristics discovered");
-
-    let hr_measurement = hrm
-        .characteristics()
-        .into_iter()
-        .find(|c| c.uuid == UUID::B16(0x2A37))
-        .unwrap();
-
-    hrm.subscribe(&hr_measurement).unwrap();
-    println!("Subscribed to hr measure");
-
-    let db_hrm = db.clone();
-    hrm.on_notification(Box::new(move |n| {
-        print!(
-            "{}HR {:?}bpm ",
-            CursorTo::AbsoluteX(0),
-            parse_hrm(&n.value).bpm
-        );
-        stdout().flush().unwrap();
-        db_hrm.insert(session_key, start.elapsed(), n).unwrap();
-    }));
-
-    /*
-    // Connect to Kickr and print its raw notifications
-    let kickr = central
-        .peripherals()
-        .into_iter()
-        .find(|p| {
-            p.properties()
-                .local_name
-                .iter()
-                .any(|name| name.contains("KICKR"))
-        })
-        .unwrap();
-
-    println!("Found KICKR");
-
-    kickr.connect().unwrap();
-    println!("Connected to KICKR");
-
-    kickr.discover_characteristics().unwrap();
-    println!("All characteristics discovered");
-
-    let unlock_characteristic = kickr
-        .characteristics()
-        .into_iter()
-        .find(|c| {
-            c.uuid
-                == UUID::B128([
-                    0xA0, 0x26, 0xE0, 0x02, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F,
-                    0x9F, 0xEB, 0x8B,
-                ])
-        })
-        .unwrap();
-
-    let trainer_characteristic = kickr
-        .characteristics()
-        .into_iter()
-        .find(|c| {
-            c.uuid
-                == UUID::B128([
-                    0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F,
-                    0x9F, 0xEB, 0x8B,
-                ])
-        })
-        .unwrap();
-
-    kickr.subscribe(&trainer_characteristic).unwrap();
-    println!("Subscribed to trainer characteristic");
-
-    kickr
-        .command(&unlock_characteristic, &[0x20, 0xee, 0xfc])
-        .unwrap();
-    println!("kickr unlocked!");
-
-    let power_measurement = kickr
-        .characteristics()
-        .into_iter()
-        .find(|c| c.uuid == UUID::B16(0x2A63))
-        .unwrap();
-
-    kickr.subscribe(&power_measurement).unwrap();
-    println!("Subscribed to power measure");
-
-    let db_kickr = db.clone();
-    kickr.on_notification(Box::new(move |n| {
-        if n.uuid == UUID::B16(0x2A63) {
-            print!(
-                "{}Power {:?}W   ",
-                CursorTo::AbsoluteX(16),
-                parse_cycling_power_measurement(&n.value).instantaneous_power
-            );
-            stdout().flush().unwrap();
-            db_kickr.insert(session_key, start.elapsed(), n).unwrap();
-        } else {
-            println!("Non-power notification from kickr: {:?}", n);
-        }
-    }));
-
-    let power_control = kickr
-        .characteristics()
-        .into_iter()
-        .find(|c| {
-            c.uuid
-                == UUID::B128([
-                    0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F,
-                    0x9F, 0xEB, 0x8B,
-                ])
-        })
-        .unwrap();
-
-    kickr.request(&power_control, &[0x42, 160, 0]).unwrap();
-    println!("Kickr power set!");
-    */
-
-    // Connect to Cadence meter and print its raw notifications
-    let cadence_measure = central
-        .peripherals()
-        .into_iter()
-        .find(|p| {
-            p.properties()
-                .local_name
-                .iter()
-                .any(|name| name.contains("CADENCE"))
-        })
-        .unwrap();
-
-    println!("Found CADENCE");
-
-    cadence_measure.connect().unwrap();
-    println!("Connected to CADENCE");
-
-    cadence_measure.discover_characteristics().unwrap();
-    println!("All characteristics discovered");
-
-    let cadence_measurement = cadence_measure
-        .characteristics()
-        .into_iter()
-        .find(|c| c.uuid == UUID::B16(0x2A5B))
-        .unwrap();
-
-    cadence_measure.subscribe(&cadence_measurement).unwrap();
-    println!("Subscribed to cadence measure");
-
-    let mut o_last_cadence_measure: Option<CscMeasurement> = None;
-    let db_cadence_measure = db.clone();
-    cadence_measure.on_notification(Box::new(move |n| {
-        let csc_measure = parse_csc_measurement(&n.value);
-        let last_cadence_measure = mem::replace(&mut o_last_cadence_measure, None);
-        if let Some(last_cadence_measure) = last_cadence_measure {
-            let a = last_cadence_measure.crank.unwrap();
-            let b = csc_measure.crank.as_ref().unwrap();
-            if let Some(rpm) = overflow_protected_rpm(&a, &b) {
-                print!("{}Cadence {:?}rpm  ", CursorTo::AbsoluteX(32), rpm as u8);
-                stdout().flush().unwrap();
-            }
-        }
-        o_last_cadence_measure = Some(csc_measure);
-        db_cadence_measure
-            .insert(session_key, start.elapsed(), n)
+    if is_output_mode {
+        // TODO: Should accept a cli flag for output mode vs session mode
+        let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
+        File::create("workout.fit")
+            .unwrap()
+            .write_all(&db_session_to_fit(&db, most_recent_session)[..])
             .unwrap();
-    }));
+    } else {
+        // We want instant, because we want this to be monotonic. We don't want
+        // clock drift/corrections to cause events to be processed out of order.
+        let start = Instant::now();
+        // This won't fail unless the clock is before epoch, which sounds like a
+        // bigger problem
+        let session_key = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        println!("Getting Manager...");
+        let manager = Manager::new().unwrap();
 
-    thread::park();
+        let mut adapter = manager.adapters().unwrap().into_iter().next().unwrap();
+
+        adapter = manager.down(&adapter).unwrap();
+        adapter = manager.up(&adapter).unwrap();
+
+        let central = adapter.connect().unwrap();
+
+        println!("Starting Scan...");
+        central.start_scan().unwrap();
+
+        thread::sleep(Duration::from_secs(5));
+
+        println!("Stopping scan...");
+        central.stop_scan().unwrap();
+
+        if use_hr {
+            // Connect to HRM and print its parsed notifications
+            let hrm = central
+                .peripheral(BDAddr {
+                    address: [0xA0, 0x26, 0xBD, 0xF7, 0xB2, 0xED],
+                })
+                .unwrap();
+            println!("Found HRM");
+
+            hrm.connect().unwrap();
+            println!("Connected to HRM");
+
+            hrm.discover_characteristics().unwrap();
+            println!("All characteristics discovered");
+
+            let hr_measurement = hrm
+                .characteristics()
+                .into_iter()
+                .find(|c| c.uuid == UUID::B16(0x2A37))
+                .unwrap();
+
+            hrm.subscribe(&hr_measurement).unwrap();
+            println!("Subscribed to hr measure");
+
+            let db_hrm = db.clone();
+            hrm.on_notification(Box::new(move |n| {
+                print!(
+                    "{}HR {:?}bpm ",
+                    CursorTo::AbsoluteX(0),
+                    parse_hrm(&n.value).bpm
+                );
+                stdout().flush().unwrap();
+                db_hrm.insert(session_key, start.elapsed(), n).unwrap();
+            }));
+        }
+
+        if use_power {
+            // Connect to Kickr and print its raw notifications
+            let kickr = central
+                .peripherals()
+                .into_iter()
+                .find(|p| {
+                    p.properties()
+                        .local_name
+                        .iter()
+                        .any(|name| name.contains("KICKR"))
+                })
+                .unwrap();
+
+            println!("Found KICKR");
+
+            kickr.connect().unwrap();
+            println!("Connected to KICKR");
+
+            kickr.discover_characteristics().unwrap();
+            println!("All characteristics discovered");
+
+            let unlock_characteristic = kickr
+                .characteristics()
+                .into_iter()
+                .find(|c| {
+                    c.uuid
+                        == UUID::B128([
+                            0xA0, 0x26, 0xE0, 0x02, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50,
+                            0x0F, 0x9F, 0xEB, 0x8B,
+                        ])
+                })
+                .unwrap();
+
+            let trainer_characteristic = kickr
+                .characteristics()
+                .into_iter()
+                .find(|c| {
+                    c.uuid
+                        == UUID::B128([
+                            0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50,
+                            0x0F, 0x9F, 0xEB, 0x8B,
+                        ])
+                })
+                .unwrap();
+
+            kickr.subscribe(&trainer_characteristic).unwrap();
+            println!("Subscribed to trainer characteristic");
+
+            kickr
+                .command(&unlock_characteristic, &[0x20, 0xee, 0xfc])
+                .unwrap();
+            println!("kickr unlocked!");
+
+            let power_measurement = kickr
+                .characteristics()
+                .into_iter()
+                .find(|c| c.uuid == UUID::B16(0x2A63))
+                .unwrap();
+
+            kickr.subscribe(&power_measurement).unwrap();
+            println!("Subscribed to power measure");
+
+            let db_kickr = db.clone();
+            kickr.on_notification(Box::new(move |n| {
+                if n.uuid == UUID::B16(0x2A63) {
+                    print!(
+                        "{}Power {:?}W   ",
+                        CursorTo::AbsoluteX(16),
+                        parse_cycling_power_measurement(&n.value).instantaneous_power
+                    );
+                    stdout().flush().unwrap();
+                    db_kickr.insert(session_key, start.elapsed(), n).unwrap();
+                } else {
+                    println!("Non-power notification from kickr: {:?}", n);
+                }
+            }));
+
+            let power_control = kickr
+                .characteristics()
+                .into_iter()
+                .find(|c| {
+                    c.uuid
+                        == UUID::B128([
+                            0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50,
+                            0x0F, 0x9F, 0xEB, 0x8B,
+                        ])
+                })
+                .unwrap();
+
+            kickr.request(&power_control, &[0x42, 160, 0]).unwrap();
+            println!("Kickr power set!");
+        }
+
+        if use_cadence {
+            // Connect to Cadence meter and print its raw notifications
+            let cadence_measure = central
+                .peripherals()
+                .into_iter()
+                .find(|p| {
+                    p.properties()
+                        .local_name
+                        .iter()
+                        .any(|name| name.contains("CADENCE"))
+                })
+                .unwrap();
+
+            println!("Found CADENCE");
+
+            cadence_measure.connect().unwrap();
+            println!("Connected to CADENCE");
+
+            cadence_measure.discover_characteristics().unwrap();
+            println!("All characteristics discovered");
+
+            let cadence_measurement = cadence_measure
+                .characteristics()
+                .into_iter()
+                .find(|c| c.uuid == UUID::B16(0x2A5B))
+                .unwrap();
+
+            cadence_measure.subscribe(&cadence_measurement).unwrap();
+            println!("Subscribed to cadence measure");
+
+            let mut o_last_cadence_measure: Option<CscMeasurement> = None;
+            let db_cadence_measure = db.clone();
+            cadence_measure.on_notification(Box::new(move |n| {
+                let csc_measure = parse_csc_measurement(&n.value);
+                let last_cadence_measure = mem::replace(&mut o_last_cadence_measure, None);
+                if let Some(last_cadence_measure) = last_cadence_measure {
+                    let a = last_cadence_measure.crank.unwrap();
+                    let b = csc_measure.crank.as_ref().unwrap();
+                    if let Some(rpm) = overflow_protected_rpm(&a, &b) {
+                        print!("{}Cadence {:?}rpm  ", CursorTo::AbsoluteX(32), rpm as u8);
+                        stdout().flush().unwrap();
+                    }
+                }
+                o_last_cadence_measure = Some(csc_measure);
+                db_cadence_measure
+                    .insert(session_key, start.elapsed(), n)
+                    .unwrap();
+            }));
+        }
+
+        thread::park();
+    }
 }
 
 // A Struct that does not care about bit compression
