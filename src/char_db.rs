@@ -1,7 +1,7 @@
 use btleplug::api::{ValueNotification, UUID};
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-use std::time::{Duration};
+use std::time::Duration;
 
 // SUUID is equivalent to a UUID, however it is serializable so we can save its
 // value to our sled.
@@ -87,11 +87,14 @@ impl CharDb {
         Ok(x.map(|(k, _)| self.decode_key(k).0))
     }
 
-    pub fn get_session_entries(&self, session_key: u64) -> impl Iterator<Item = sled::Result<((u64, Duration, UUID), Vec<u8>)>> + '_ {
+    pub fn get_session_entries(
+        &self,
+        session_key: u64,
+    ) -> impl Iterator<Item = sled::Result<((u64, Duration, UUID), Vec<u8>)>> + '_ {
         let start = self.key_coder.serialize(&session_key).unwrap();
         let end = self.key_coder.serialize(&(session_key + 1)).unwrap();
-        self.db.range(start..end).map(move |x| {
-            x.map(|xx| self.decode(xx))
-        })
+        self.db
+            .range(start..end)
+            .map(move |x| x.map(|xx| self.decode(xx)))
     }
 }
