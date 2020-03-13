@@ -103,6 +103,38 @@ pub fn main() {
     kickr.discover_characteristics().unwrap();
     println!("All characteristics discovered");
 
+    let unlock_characteristic = kickr
+        .characteristics()
+        .into_iter()
+        .find(|c| {
+            c.uuid
+                == UUID::B128([
+                    0xA0, 0x26, 0xE0, 0x02, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F,
+                    0x9F, 0xEB, 0x8B,
+                ])
+        })
+        .unwrap();
+
+    let trainer_characteristic = kickr
+        .characteristics()
+        .into_iter()
+        .find(|c| {
+            c.uuid
+                == UUID::B128([
+                    0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F,
+                    0x9F, 0xEB, 0x8B,
+                ])
+        })
+        .unwrap();
+
+    kickr.subscribe(&trainer_characteristic).unwrap();
+    println!("Subscribed to trainer characteristic");
+
+    kickr
+        .command(&unlock_characteristic, &[0x20, 0xee, 0xfc])
+        .unwrap();
+    println!("kickr unlocked!");
+
     let power_measurement = kickr
         .characteristics()
         .into_iter()
@@ -114,14 +146,33 @@ pub fn main() {
 
     let db_kickr = db.clone();
     kickr.on_notification(Box::new(move |n| {
-        print!(
-            "{}Power {:?}W   ",
-            CursorTo::AbsoluteX(16),
-            parse_cycling_power_measurement(&n.value).instantaneous_power
-        );
-        stdout().flush().unwrap();
-        db_kickr.insert(session_key, start.elapsed(), n).unwrap();
+        if n.uuid == UUID::B16(0x2A63) {
+            print!(
+                "{}Power {:?}W   ",
+                CursorTo::AbsoluteX(16),
+                parse_cycling_power_measurement(&n.value).instantaneous_power
+            );
+            stdout().flush().unwrap();
+            db_kickr.insert(session_key, start.elapsed(), n).unwrap();
+        } else {
+            println!("Non-power notification from kickr: {:?}", n);
+        }
     }));
+
+    let power_control = kickr
+        .characteristics()
+        .into_iter()
+        .find(|c| {
+            c.uuid
+                == UUID::B128([
+                    0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F,
+                    0x9F, 0xEB, 0x8B,
+                ])
+        })
+        .unwrap();
+
+    kickr.request(&power_control, &[0x42, 160, 0]).unwrap();
+    println!("Kickr power set!");
     */
 
     // Connect to Cadence meter and print its raw notifications
