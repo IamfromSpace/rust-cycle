@@ -5,7 +5,7 @@ use btleplug::api::{BDAddr, Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::fs::File;
 use std::io::{stdout, Write};
-use std::sync::Mutex;
+use std::mem;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -153,23 +153,20 @@ pub fn main() {
     cadence_measure.subscribe(&cadence_measurement).unwrap();
     println!("Subscribed to cadence measure");
 
-    // Because the handler is a Fn vs FnMut, we can't mutate the environment
-    // that's moved into the closure.  As such, we use a mutex, since it's
-    // technically not "mutated"
-    let m_o_last_cadence_measure: Mutex<Option<CscMeasurement>> = Mutex::new(None);
+    let mut o_last_cadence_measure: Option<CscMeasurement> = None;
     let db_cadence_measure = db.clone();
     cadence_measure.on_notification(Box::new(move |n| {
         let csc_measure = parse_csc_measurement(&n.value);
-        let mut o_last_cadence_measure = m_o_last_cadence_measure.lock().unwrap();
-        if let Some(last_cadence_measure) = &*o_last_cadence_measure {
-            let a = last_cadence_measure.crank.as_ref().unwrap();
-            let b = csc_measure.crank.clone().unwrap();
+        let last_cadence_measure = mem::replace(&mut o_last_cadence_measure, None);
+        if let Some(last_cadence_measure) = last_cadence_measure {
+            let a = last_cadence_measure.crank.unwrap();
+            let b = csc_measure.crank.as_ref().unwrap();
             if let Some(rpm) = overflow_protected_rpm(&a, &b) {
                 print!("{}Cadence {:?}rpm  ", CursorTo::AbsoluteX(32), rpm as u8);
                 stdout().flush().unwrap();
             }
         }
-        *o_last_cadence_measure = Some(csc_measure);
+        o_last_cadence_measure = Some(csc_measure);
         db_cadence_measure
             .insert(session_key, start.elapsed(), n)
             .unwrap();
