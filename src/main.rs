@@ -1,7 +1,7 @@
 mod char_db;
 
 use ansi_escapes::CursorTo;
-use btleplug::api::{BDAddr, Central, Peripheral, UUID};
+use btleplug::api::{Central, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::collections::BTreeSet;
 use std::env;
@@ -49,6 +49,10 @@ pub fn main() {
         adapter = manager.up(&adapter).unwrap();
 
         let central = adapter.connect().unwrap();
+        // There's a bug in 0.4 that does not default the scan to active.
+        // Without an active scan the Polar H10 will not give back its name.
+        // TODO: remove this line after merge and upgrade.
+        central.active(true);
 
         println!("Starting Scan...");
         central.start_scan().unwrap();
@@ -61,8 +65,13 @@ pub fn main() {
         if use_hr {
             // Connect to HRM and print its parsed notifications
             let hrm = central
-                .peripheral(BDAddr {
-                    address: [0xA0, 0x26, 0xBD, 0xF7, 0xB2, 0xED],
+                .peripherals()
+                .into_iter()
+                .find(|p| {
+                    p.properties()
+                        .local_name
+                        .iter()
+                        .any(|name| name.contains("Polar"))
                 })
                 .unwrap();
             println!("Found HRM");
