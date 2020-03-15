@@ -281,6 +281,8 @@ pub fn main() {
                     let p = central_for_disconnects.peripheral(addr).unwrap();
                     p.reconnect().unwrap();
                     println!("PERIPHERAL RECONNECTED");
+                    // TODO: If this is the kickr, we need to unlock it again
+                    // and set its power.
                 }
                 _ => {}
             }
