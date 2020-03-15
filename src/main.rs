@@ -92,11 +92,14 @@ pub fn main() {
             println!("Subscribed to hr measure");
 
             let db_hrm = db.clone();
+            let mut i = 0;
             hrm.on_notification(Box::new(move |n| {
+                i += 1;
                 print!(
-                    "{}HR {:?}bpm ",
+                    "{}HR {:?}bpm ({}) ",
                     CursorTo::AbsoluteX(0),
-                    parse_hrm(&n.value).bpm
+                    parse_hrm(&n.value).bpm,
+                    i
                 );
                 stdout().flush().unwrap();
                 db_hrm.insert(session_key, start.elapsed(), n).unwrap();
@@ -168,12 +171,15 @@ pub fn main() {
             println!("Subscribed to power measure");
 
             let db_kickr = db.clone();
+            let mut i = 0;
             kickr.on_notification(Box::new(move |n| {
                 if n.uuid == UUID::B16(0x2A63) {
+                    i += 1;
                     print!(
-                        "{}Power {:?}W   ",
-                        CursorTo::AbsoluteX(16),
-                        parse_cycling_power_measurement(&n.value).instantaneous_power
+                        "{}Power {:?}W ({})  ",
+                        CursorTo::AbsoluteX(23),
+                        parse_cycling_power_measurement(&n.value).instantaneous_power,
+                        i
                     );
                     stdout().flush().unwrap();
                     db_kickr.insert(session_key, start.elapsed(), n).unwrap();
@@ -230,14 +236,21 @@ pub fn main() {
 
             let mut o_last_cadence_measure: Option<CscMeasurement> = None;
             let db_cadence_measure = db.clone();
+            let mut i = 0;
             cadence_measure.on_notification(Box::new(move |n| {
                 let csc_measure = parse_csc_measurement(&n.value);
                 let last_cadence_measure = mem::replace(&mut o_last_cadence_measure, None);
                 if let Some(last_cadence_measure) = last_cadence_measure {
                     let a = last_cadence_measure.crank.unwrap();
                     let b = csc_measure.crank.as_ref().unwrap();
+                    i += 1;
                     if let Some(rpm) = overflow_protected_rpm(&a, &b) {
-                        print!("{}Cadence {:?}rpm  ", CursorTo::AbsoluteX(32), rpm as u8);
+                        print!(
+                            "{}Cadence {:?}rpm ({}) ",
+                            CursorTo::AbsoluteX(46),
+                            rpm as u8,
+                            i
+                        );
                         stdout().flush().unwrap();
                     }
                 }
