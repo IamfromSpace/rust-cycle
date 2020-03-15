@@ -1,7 +1,7 @@
 mod char_db;
 
 use ansi_escapes::CursorTo;
-use btleplug::api::{Central, Peripheral, UUID};
+use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use std::collections::BTreeSet;
 use std::env;
@@ -260,6 +260,21 @@ pub fn main() {
                     .unwrap();
             }));
         }
+
+        let central_for_disconnects = central.clone();
+        central.on_event(Box::new(move |evt| {
+            println!("{:?}", evt);
+            match evt {
+                CentralEvent::DeviceDisconnected(addr) => {
+                    println!("PERIPHERAL DISCONNECTED");
+                    thread::sleep(Duration::from_secs(2));
+                    let p = central_for_disconnects.peripheral(addr).unwrap();
+                    p.reconnect().unwrap();
+                    println!("PERIPHERAL RECONNECTED");
+                }
+                _ => {}
+            }
+        }));
 
         thread::park();
     }
