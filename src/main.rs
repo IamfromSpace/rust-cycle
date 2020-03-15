@@ -94,15 +94,19 @@ pub fn main() {
             let db_hrm = db.clone();
             let mut i = 0;
             hrm.on_notification(Box::new(move |n| {
+                let elapsed = start.elapsed();
                 i += 1;
                 print!(
-                    "{}HR {:?}bpm ({}) ",
+                    "{}{}:{:02}   {}HR {:?}bpm ({}) ",
                     CursorTo::AbsoluteX(0),
+                    elapsed.as_secs() / 60,
+                    elapsed.as_secs() % 60,
+                    CursorTo::AbsoluteX(9),
                     parse_hrm(&n.value).bpm,
                     i
                 );
                 stdout().flush().unwrap();
-                db_hrm.insert(session_key, start.elapsed(), n).unwrap();
+                db_hrm.insert(session_key, elapsed, n).unwrap();
             }));
         }
 
@@ -174,15 +178,19 @@ pub fn main() {
             let mut i = 0;
             kickr.on_notification(Box::new(move |n| {
                 if n.uuid == UUID::B16(0x2A63) {
+                    let elapsed = start.elapsed();
                     i += 1;
                     print!(
-                        "{}Power {:?}W ({})  ",
-                        CursorTo::AbsoluteX(23),
+                        "{}{}:{:02}   {}Power {:?}W ({})  ",
+                        CursorTo::AbsoluteX(0),
+                        elapsed.as_secs() / 60,
+                        elapsed.as_secs() % 60,
+                        CursorTo::AbsoluteX(32),
                         parse_cycling_power_measurement(&n.value).instantaneous_power,
                         i
                     );
                     stdout().flush().unwrap();
-                    db_kickr.insert(session_key, start.elapsed(), n).unwrap();
+                    db_kickr.insert(session_key, elapsed, n).unwrap();
                 } else {
                     println!("Non-power notification from kickr: {:?}", n);
                 }
@@ -238,6 +246,7 @@ pub fn main() {
             let db_cadence_measure = db.clone();
             let mut i = 0;
             cadence_measure.on_notification(Box::new(move |n| {
+                let elapsed = start.elapsed();
                 let csc_measure = parse_csc_measurement(&n.value);
                 let last_cadence_measure = mem::replace(&mut o_last_cadence_measure, None);
                 if let Some(last_cadence_measure) = last_cadence_measure {
@@ -246,8 +255,11 @@ pub fn main() {
                     i += 1;
                     if let Some(rpm) = overflow_protected_rpm(&a, &b) {
                         print!(
-                            "{}Cadence {:?}rpm ({}) ",
-                            CursorTo::AbsoluteX(46),
+                            "{}{}:{:02}   {}Cadence {:?}rpm ({}) ",
+                            CursorTo::AbsoluteX(0),
+                            elapsed.as_secs() / 60,
+                            elapsed.as_secs() % 60,
+                            CursorTo::AbsoluteX(55),
                             rpm as u8,
                             i
                         );
@@ -255,9 +267,7 @@ pub fn main() {
                     }
                 }
                 o_last_cadence_measure = Some(csc_measure);
-                db_cadence_measure
-                    .insert(session_key, start.elapsed(), n)
-                    .unwrap();
+                db_cadence_measure.insert(session_key, elapsed, n).unwrap();
             }));
         }
 
