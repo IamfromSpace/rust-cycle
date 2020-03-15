@@ -1,34 +1,6 @@
 use btleplug::api::{ValueNotification, UUID};
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::time::Duration;
-
-// SUUID is equivalent to a UUID, however it is serializable so we can save its
-// value to our sled.
-// It's scoped only to this module, so it's mostly hidden.
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-enum SUUID {
-    B16(u16),
-    B128([u8; 16]),
-}
-
-impl From<UUID> for SUUID {
-    fn from(u: UUID) -> SUUID {
-        match u {
-            UUID::B16(x) => SUUID::B16(x),
-            UUID::B128(x) => SUUID::B128(x),
-        }
-    }
-}
-
-impl From<SUUID> for UUID {
-    fn from(u: SUUID) -> UUID {
-        match u {
-            SUUID::B16(x) => UUID::B16(x),
-            SUUID::B128(x) => UUID::B128(x),
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct CharDb {
@@ -56,7 +28,7 @@ impl CharDb {
         // I can't imagine why this would fail...
         let key = self
             .key_coder
-            .serialize(&(session_key, elapsed, SUUID::from(notification.uuid)))
+            .serialize(&(session_key, elapsed, notification.uuid))
             .unwrap();
         self.db.insert(key, notification.value)?;
         Ok(())
@@ -67,7 +39,7 @@ impl CharDb {
         // Unless there was DB corruption?
         // Maybe good to consider those cases at some point.
         let z: Vec<u8> = (*k).try_into().unwrap();
-        let (session_key, d, suuid): (u64, Duration, SUUID) =
+        let (session_key, d, suuid): (u64, Duration, UUID) =
             self.key_coder.deserialize(&z).unwrap();
         (session_key, d, suuid.into())
     }

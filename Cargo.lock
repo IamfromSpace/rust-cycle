@@ -120,6 +120,7 @@ dependencies = [
  "nom 4.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "objc 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "winrt 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -772,7 +773,6 @@ dependencies = [
  "ansi-escapes 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bincode 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "btleplug 0.4.0 (git+https://github.com/IamfromSpace/btleplug.git?rev=d5eb1d3c557b1946)",
- "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "sled 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
