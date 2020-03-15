@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 bincode = "1.2"
-btleplug = { git = "https://github.com/IamfromSpace/btleplug.git", rev = "5abb31a6ea692068" }
+btleplug = { git = "https://github.com/IamfromSpace/btleplug.git", rev = "d5eb1d3c557b1946" }
 ansi-escapes = "0.1"
 sled = "0.31"
 serde = { version = "1.0", features = ["derive"] }
