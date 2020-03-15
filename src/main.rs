@@ -208,7 +208,7 @@ pub fn main() {
                 })
                 .unwrap();
 
-            kickr.request(&power_control, &[0x42, 160, 0]).unwrap();
+            kickr.command(&power_control, &[0x42, 80, 0]).unwrap();
             println!("Kickr power set!");
         }
 
