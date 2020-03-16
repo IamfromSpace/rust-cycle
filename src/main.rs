@@ -1,4 +1,5 @@
 mod char_db;
+mod peripherals;
 
 use ansi_escapes::CursorTo;
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
@@ -10,6 +11,9 @@ use std::io::{stdout, Write};
 use std::mem;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+// TODO: More complex workouts
+const POWER_TARGET: u8 = 160;
 
 pub fn main() {
     let args: BTreeSet<String> = env::args().collect();
@@ -115,64 +119,11 @@ pub fn main() {
             let kickr = central
                 .peripherals()
                 .into_iter()
-                .find(|p| {
-                    p.properties()
-                        .local_name
-                        .iter()
-                        .any(|name| name.contains("KICKR"))
-                })
+                .find(peripherals::kickr::is_kickr)
                 .unwrap();
-
             println!("Found KICKR");
 
-            kickr.connect().unwrap();
-            println!("Connected to KICKR");
-
-            kickr.discover_characteristics().unwrap();
-            println!("All characteristics discovered");
-
-            let unlock_characteristic = kickr
-                .characteristics()
-                .into_iter()
-                .find(|c| {
-                    c.uuid
-                        == UUID::B128([
-                            0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A,
-                            0x02, 0xE0, 0x26, 0xA0,
-                        ])
-                })
-                .unwrap();
-            println!("Unlock char found.");
-
-            let trainer_characteristic = kickr
-                .characteristics()
-                .into_iter()
-                .find(|c| {
-                    c.uuid
-                        == UUID::B128([
-                            0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A,
-                            0x05, 0xE0, 0x26, 0xA0,
-                        ])
-                })
-                .unwrap();
-            println!("Trainer char found.");
-
-            kickr.subscribe(&trainer_characteristic).unwrap();
-            println!("Subscribed to trainer characteristic");
-
-            kickr
-                .command(&unlock_characteristic, &[0x20, 0xee, 0xfc])
-                .unwrap();
-            println!("kickr unlocked!");
-
-            let power_measurement = kickr
-                .characteristics()
-                .into_iter()
-                .find(|c| c.uuid == UUID::B16(0x2A63))
-                .unwrap();
-
-            kickr.subscribe(&power_measurement).unwrap();
-            println!("Subscribed to power measure");
+            peripherals::kickr::setup(&kickr).unwrap();
 
             let db_kickr = db.clone();
             let mut i = 0;
@@ -196,20 +147,8 @@ pub fn main() {
                 }
             }));
 
-            let power_control = kickr
-                .characteristics()
-                .into_iter()
-                .find(|c| {
-                    c.uuid
-                        == UUID::B128([
-                            0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A,
-                            0x05, 0xE0, 0x26, 0xA0,
-                        ])
-                })
-                .unwrap();
-
-            kickr.command(&power_control, &[0x42, 80, 0]).unwrap();
-            println!("Kickr power set!");
+            let set_power = peripherals::kickr::on_connect(&kickr).unwrap();
+            set_power(POWER_TARGET).unwrap();
         }
 
         if use_cadence {
@@ -280,9 +219,14 @@ pub fn main() {
                     thread::sleep(Duration::from_secs(2));
                     let p = central_for_disconnects.peripheral(addr).unwrap();
                     p.reconnect().unwrap();
+
+                    if peripherals::kickr::is_kickr(&p) {
+                        p.connect().unwrap();
+                        let set_power = peripherals::kickr::on_connect(&p).unwrap();
+                        set_power(POWER_TARGET).unwrap();
+                    }
+
                     println!("PERIPHERAL RECONNECTED");
-                    // TODO: If this is the kickr, we need to unlock it again
-                    // and set its power.
                 }
                 _ => {}
             }
