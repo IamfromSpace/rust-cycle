@@ -214,7 +214,7 @@ pub fn main() {
                     // Kickr is handled on its own
                     if !peripherals::kickr::is_kickr(&p) {
                         thread::sleep(Duration::from_secs(2));
-                        p.reconnect().unwrap();
+                        p.connect().unwrap();
 
                         println!("PERIPHERAL RECONNECTED");
                     }

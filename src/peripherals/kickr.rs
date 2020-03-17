@@ -44,7 +44,7 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
         peripheral.discover_characteristics()?;
         println!("All characteristics discovered");
 
-        setup(&peripheral)?;
+        first_time_setup(&peripheral)?;
         unlock(&peripheral).unwrap();
 
         let power_control_char = peripheral
@@ -66,7 +66,6 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
                 if is_kickr(&p) {
                     thread::sleep(Duration::from_secs(2));
                     p.connect().unwrap();
-                    setup(&p).unwrap();
                     unlock(&p).unwrap();
                     if let Some(power) = *(tp_for_disconnects.lock().unwrap()) {
                         set_power(&p, &pcc_for_disconnects, power).unwrap();
@@ -104,7 +103,7 @@ pub fn is_kickr(p: &impl Peripheral) -> bool {
         .any(|name| name.contains("KICKR"))
 }
 
-fn setup(kickr: &impl Peripheral) -> Result<()> {
+fn first_time_setup(kickr: &impl Peripheral) -> Result<()> {
     let power_measurement = kickr
         .characteristics()
         .into_iter()
