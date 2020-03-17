@@ -5,6 +5,7 @@ mod peripherals;
 use ansi_escapes::CursorTo;
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
+use peripherals::kickr::Kickr;
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
@@ -117,14 +118,7 @@ pub fn main() {
 
         if use_power {
             // Connect to Kickr and print its raw notifications
-            let kickr = central
-                .peripherals()
-                .into_iter()
-                .find(peripherals::kickr::is_kickr)
-                .unwrap();
-            println!("Found KICKR");
-
-            peripherals::kickr::setup(&kickr).unwrap();
+            let kickr = Kickr::new(central.clone()).unwrap();
 
             let db_kickr = db.clone();
             let mut i = 0;
@@ -148,8 +142,7 @@ pub fn main() {
                 }
             }));
 
-            let set_power = peripherals::kickr::on_connect(&kickr).unwrap();
-            set_power(POWER_TARGET).unwrap();
+            kickr.set_power(POWER_TARGET).unwrap();
         }
 
         if use_cadence {
@@ -217,17 +210,14 @@ pub fn main() {
             match evt {
                 CentralEvent::DeviceDisconnected(addr) => {
                     println!("PERIPHERAL DISCONNECTED");
-                    thread::sleep(Duration::from_secs(2));
                     let p = central_for_disconnects.peripheral(addr).unwrap();
-                    p.reconnect().unwrap();
+                    // Kickr is handled on its own
+                    if !peripherals::kickr::is_kickr(&p) {
+                        thread::sleep(Duration::from_secs(2));
+                        p.reconnect().unwrap();
 
-                    if peripherals::kickr::is_kickr(&p) {
-                        p.connect().unwrap();
-                        let set_power = peripherals::kickr::on_connect(&p).unwrap();
-                        set_power(POWER_TARGET).unwrap();
+                        println!("PERIPHERAL RECONNECTED");
                     }
-
-                    println!("PERIPHERAL RECONNECTED");
                 }
                 _ => {}
             }
