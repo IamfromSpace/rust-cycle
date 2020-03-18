@@ -30,6 +30,9 @@ pub struct Kickr<C, P> {
 }
 
 impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
+    // TODO: It may make sense to separate out new (Optional) and connect
+    // (Result).  For this app, we really only care about permanently
+    // connecting (but it would be nice to clean up connections on exit).
     pub fn new(central: C) -> Result<Self> {
         let peripheral = central.peripherals().into_iter().find(is_kickr).unwrap();
 
@@ -55,6 +58,7 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
         let pcc_for_disconnects = power_control_char.clone();
 
         // TODO: How on earth do we handle errors here???
+        // Potentially we just keep retrying with exponential back-off?
         central.on_event(Box::new(move |evt| {
             if let CentralEvent::DeviceDisconnected(addr) = evt {
                 let p = central_for_disconnects.peripheral(addr).unwrap();
