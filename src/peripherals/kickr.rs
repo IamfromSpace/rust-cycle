@@ -40,7 +40,7 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
         println!("All characteristics discovered");
 
         first_time_setup(&peripheral)?;
-        unlock(&peripheral).unwrap();
+        unlock(&peripheral)?;
 
         let power_control_char = peripheral
             .characteristics()
