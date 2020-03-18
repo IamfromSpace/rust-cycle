@@ -142,7 +142,9 @@ fn set_power(
     power_control_char: &Characteristic,
     power: u8,
 ) -> Result<()> {
-    peripheral.command(power_control_char, &[0x42, power, 0])?;
+    // TODO: This is definitely request (not command), but this kills all
+    // notifications after 30 seconds
+    peripheral.request(power_control_char, &[0x42, power, 0])?;
     thread::sleep(Duration::from_secs(1));
     Ok(())
 }
