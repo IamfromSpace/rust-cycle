@@ -7,9 +7,6 @@ use std::{
     time::Duration,
 };
 
-// TODO: This should really return a whole new Kickr struct that encapsulates
-// all ble details and just has methods that apply to Kickrs.
-
 const UNLOCK_UUID: UUID = UUID::B128([
     0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A, 0x02, 0xE0, 0x26, 0xA0,
 ]);
@@ -29,11 +26,9 @@ pub struct Kickr<C, P> {
     power_control_char: Characteristic,
     // TODO: should be u16
     target_power: Arc<Mutex<Option<u8>>>,
-    // TODO: Use phantom type
     central: PhantomData<C>,
 }
 
-// TODO: Central likely can't be static
 impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
     pub fn new(central: C) -> Result<Self> {
         let peripheral = central.peripherals().into_iter().find(is_kickr).unwrap();
