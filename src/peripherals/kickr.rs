@@ -82,6 +82,8 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
     }
 
     pub fn set_power(&self, power: u8) -> Result<()> {
+        // TODO: We get a notification when this is done, so if we hold the lock
+        // until then, we can use eventing to ensure a good sync.
         let mut tp_guard = self.target_power.lock().unwrap();
         *tp_guard = Some(power);
 
@@ -142,8 +144,6 @@ fn set_power(
     power_control_char: &Characteristic,
     power: u8,
 ) -> Result<()> {
-    // TODO: This is definitely request (not command), but this kills all
-    // notifications after 30 seconds
     peripheral.request(power_control_char, &[0x42, power, 0])?;
     thread::sleep(Duration::from_secs(1));
     Ok(())
