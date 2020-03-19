@@ -18,6 +18,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const POWER_TARGET: u8 = 160;
 
 pub fn main() {
+    env_logger::init();
+
     let args: BTreeSet<String> = env::args().collect();
     let use_hr = args.is_empty() || args.contains("--hr");
     let use_cadence = args.is_empty() || args.contains("--cadence");
