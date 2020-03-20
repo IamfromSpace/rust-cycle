@@ -1,5 +1,6 @@
 mod char_db;
 mod fit;
+mod inky_phat;
 mod peripherals;
 
 use ansi_escapes::CursorTo;
