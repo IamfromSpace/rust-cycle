@@ -1,5 +1,7 @@
 # Rust Cycle
 
+Rust Cycle is a (WIP) bicycle computer built on Rust!
+
 ## Build
 
 ### For Pi Zero
