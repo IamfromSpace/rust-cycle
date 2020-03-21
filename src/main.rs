@@ -4,7 +4,6 @@ mod fit;
 mod inky_phat;
 mod peripherals;
 
-use ansi_escapes::CursorTo;
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use peripherals::kickr::Kickr;
@@ -13,6 +12,7 @@ use std::env;
 use std::fs::File;
 use std::io::{stdout, Write};
 use std::mem;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -27,26 +27,13 @@ pub fn main() {
     let use_cadence = args.is_empty() || args.contains("--cadence");
     let use_power = args.is_empty() || args.contains("--power");
     let is_output_mode = args.is_empty() || args.contains("--output");
-    let is_display_mode = args.contains("--display");
-    if !use_hr && !use_cadence && !use_power && !is_output_mode && !is_display_mode {
+    if !use_hr && !use_cadence && !use_power && !is_output_mode {
         panic!("No metrics/mode selected!");
     }
 
     let db = char_db::open_default().unwrap();
 
-    if is_display_mode {
-        let mut display = display::Display::new(Instant::now());
-        loop {
-            display.update_power(160);
-            display.update_cadence(92);
-            display.update_heart_rate(132);
-            display.render();
-            display.update_power(161);
-            display.update_cadence(91);
-            display.update_heart_rate(132);
-            display.render();
-        }
-    } else if is_output_mode {
+    if is_output_mode {
         // TODO: Should accept a cli flag for output mode vs session mode
         let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
         File::create("workout.fit")
@@ -57,12 +44,17 @@ pub fn main() {
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
         let start = Instant::now();
+
+        // Create Our Display
+        let display_mutex = Arc::new(Mutex::new(display::Display::new(Instant::now())));
+
         // This won't fail unless the clock is before epoch, which sounds like a
         // bigger problem
         let session_key = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
+
         println!("Getting Manager...");
         let manager = Manager::new().unwrap();
 
@@ -115,20 +107,11 @@ pub fn main() {
             println!("Subscribed to hr measure");
 
             let db_hrm = db.clone();
-            let mut i = 0;
+            let display_mutex_hrm = display_mutex.clone();
             hrm.on_notification(Box::new(move |n| {
+                let mut display = display_mutex_hrm.lock().unwrap();
+                display.update_heart_rate(parse_hrm(&n.value).bpm as u8);
                 let elapsed = start.elapsed();
-                i += 1;
-                print!(
-                    "{}{}:{:02}   {}HR {:?}bpm ({}) ",
-                    CursorTo::AbsoluteX(0),
-                    elapsed.as_secs() / 60,
-                    elapsed.as_secs() % 60,
-                    CursorTo::AbsoluteX(9),
-                    parse_hrm(&n.value).bpm,
-                    i
-                );
-                stdout().flush().unwrap();
                 db_hrm.insert(session_key, elapsed, n).unwrap();
             }));
         }
@@ -138,21 +121,14 @@ pub fn main() {
             let kickr = Kickr::new(central.clone()).unwrap();
 
             let db_kickr = db.clone();
-            let mut i = 0;
+            let display_mutex_kickr = display_mutex.clone();
             kickr.on_notification(Box::new(move |n| {
                 if n.uuid == UUID::B16(0x2A63) {
-                    let elapsed = start.elapsed();
-                    i += 1;
-                    print!(
-                        "{}{}:{:02}   {}Power {:?}W ({})  ",
-                        CursorTo::AbsoluteX(0),
-                        elapsed.as_secs() / 60,
-                        elapsed.as_secs() % 60,
-                        CursorTo::AbsoluteX(32),
+                    let mut display = display_mutex_kickr.lock().unwrap();
+                    display.update_power(
                         parse_cycling_power_measurement(&n.value).instantaneous_power,
-                        i
                     );
-                    stdout().flush().unwrap();
+                    let elapsed = start.elapsed();
                     db_kickr.insert(session_key, elapsed, n).unwrap();
                 } else {
                     println!("Non-power notification from kickr: {:?}", n);
@@ -194,7 +170,7 @@ pub fn main() {
 
             let mut o_last_cadence_measure: Option<CscMeasurement> = None;
             let db_cadence_measure = db.clone();
-            let mut i = 0;
+            let display_mutex_cadence = display_mutex.clone();
             cadence_measure.on_notification(Box::new(move |n| {
                 let elapsed = start.elapsed();
                 let csc_measure = parse_csc_measurement(&n.value);
@@ -202,17 +178,9 @@ pub fn main() {
                 if let Some(last_cadence_measure) = last_cadence_measure {
                     let a = last_cadence_measure.crank.unwrap();
                     let b = csc_measure.crank.as_ref().unwrap();
-                    i += 1;
                     if let Some(rpm) = overflow_protected_rpm(&a, &b) {
-                        print!(
-                            "{}{}:{:02}   {}Cadence {:?}rpm ({}) ",
-                            CursorTo::AbsoluteX(0),
-                            elapsed.as_secs() / 60,
-                            elapsed.as_secs() % 60,
-                            CursorTo::AbsoluteX(55),
-                            rpm as u8,
-                            i
-                        );
+                        let mut display = display_mutex_cadence.lock().unwrap();
+                        display.update_cadence(rpm as u8);
                         stdout().flush().unwrap();
                     }
                 }
@@ -239,6 +207,13 @@ pub fn main() {
                 _ => {}
             }
         }));
+
+        // Update it every second
+        let display_mutex_for_render = display_mutex.clone();
+        thread::spawn(move || loop {
+            let mut display = display_mutex_for_render.lock().unwrap();
+            display.render();
+        });
 
         thread::park();
     }
