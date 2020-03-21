@@ -35,7 +35,7 @@ pub fn main() {
     let db = char_db::open_default().unwrap();
 
     if is_display_mode {
-        let mut display = display::Display::new();
+        let mut display = display::Display::new(Instant::now());
         loop {
             display.update_power(160);
             display.update_cadence(92);
