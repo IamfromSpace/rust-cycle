@@ -1,4 +1,5 @@
 use crate::inky_phat::{InkyPhat, BLACK, HEIGHT, WIDTH};
+use chrono::Local;
 use glyph_brush_layout::{
     rusttype::{Font, Point, Scale},
     GlyphPositioner, Layout, SectionGeometry, SectionText,
@@ -121,10 +122,34 @@ impl<'a> Display<'a> {
         );
         let time_scale = Scale::uniform(height * 0.75);
         let elapsed_secs = self.start_instant.elapsed().as_secs();
-        let d1 = Layout::default().calculate_glyphs(
+        let t1 = Layout::default().calculate_glyphs(
             &self.fonts,
             &SectionGeometry {
                 screen_position: (111.0, 10.0),
+                bounds: (WIDTH as f32, HEIGHT as f32),
+            },
+            &[SectionText {
+                text: "CURRENT",
+                scale: units_scale,
+                ..SectionText::default()
+            }],
+        );
+        let t2 = Layout::default().calculate_glyphs(
+            &self.fonts,
+            &SectionGeometry {
+                screen_position: (111.0, 10.0 + 5.0),
+                bounds: (WIDTH as f32, HEIGHT as f32),
+            },
+            &[SectionText {
+                text: &format!("{}", Local::now().format("%T")),
+                scale: time_scale,
+                ..SectionText::default()
+            }],
+        );
+        let d1 = Layout::default().calculate_glyphs(
+            &self.fonts,
+            &SectionGeometry {
+                screen_position: (111.0, 10.0 + 27.5),
                 bounds: (WIDTH as f32, HEIGHT as f32),
             },
             &[SectionText {
@@ -136,7 +161,7 @@ impl<'a> Display<'a> {
         let d2 = Layout::default().calculate_glyphs(
             &self.fonts,
             &SectionGeometry {
-                screen_position: (111.0, 15.0),
+                screen_position: (111.0, 10.0 + 27.5 + 5.0),
                 bounds: (WIDTH as f32, HEIGHT as f32),
             },
             &[SectionText {
@@ -150,8 +175,7 @@ impl<'a> Display<'a> {
                 ..SectionText::default()
             }],
         );
-        // TODO: Current Time
-        vec![p, c, h, d1, d2].iter().for_each(|v| {
+        vec![p, c, h, t1, t2, d1, d2].iter().for_each(|v| {
             v.into_iter().for_each(|(positioned_glyph, _, _)| {
                 let Point {
                     x: x_offset,
