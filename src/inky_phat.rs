@@ -58,13 +58,17 @@ impl InkyPhat {
         )
         .unwrap();
 
-        InkyPhat {
+        let mut x = InkyPhat {
             buffer: vec![WHITE; HEIGHT as usize * WIDTH as usize],
             dc_pin,
             reset_pin,
             busy_pin,
             spi,
-        }
+        };
+        // TODO: Rather not update, and busy_wait doesn't seem to cut it here
+        x.update();
+        thread::sleep(Duration::from_secs(5));
+        x
     }
 
     fn display_update(&mut self, buf_black: Vec<u8>, buf_red: Vec<u8>, fast: bool) {
@@ -153,7 +157,6 @@ impl InkyPhat {
         self.send_command(0x22, &[0xc7]); // Display update setting
         self.send_command(0x20, &[]); // Display update activate
         thread::sleep(Duration::from_millis(50));
-        self.busy_wait();
     }
 
     fn display_init(&mut self) {
@@ -186,6 +189,8 @@ impl InkyPhat {
     }
 
     fn get_buffers_and_update(&mut self, fast: bool) {
+        self.busy_wait();
+
         self.display_init();
 
         let buf_red = pack_bits(
@@ -224,7 +229,9 @@ impl InkyPhat {
 
     fn busy_wait(&self) {
         //Wait for the e-paper driver to be ready to receive commands/data.
-        while self.busy_pin.read() != Level::Low {}
+        while self.busy_pin.read() != Level::Low {
+            thread::sleep(Duration::from_millis(50));
+        }
     }
 
     pub fn reset(&mut self) {
