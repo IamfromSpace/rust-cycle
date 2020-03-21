@@ -1,4 +1,5 @@
 mod char_db;
+mod display;
 mod fit;
 mod inky_phat;
 mod peripherals;
@@ -6,15 +7,10 @@ mod peripherals;
 use ansi_escapes::CursorTo;
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
-use glyph_brush_layout::{
-    rusttype::{Font, Point, Scale},
-    GlyphPositioner, Layout, SectionGeometry, SectionText,
-};
 use peripherals::kickr::Kickr;
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
-use std::include_bytes;
 use std::io::{stdout, Write};
 use std::mem;
 use std::thread;
@@ -39,46 +35,16 @@ pub fn main() {
     let db = char_db::open_default().unwrap();
 
     if is_display_mode {
-        let mut inky_phat = inky_phat::InkyPhat::new();
-        let fonts = vec![Font::from_bytes(&include_bytes!("../fonts/JOYSTIX.TTF")[..]).unwrap()];
-
-        let render_to_display = |inky_phat: &mut inky_phat::InkyPhat, s: &String| {
-            inky_phat.clear();
-            Layout::default()
-                .calculate_glyphs(
-                    &fonts,
-                    &SectionGeometry {
-                        screen_position: (10.0, 0.0),
-                        bounds: (inky_phat::WIDTH as f32, inky_phat::HEIGHT as f32),
-                    },
-                    &[SectionText {
-                        text: s,
-                        scale: Scale::uniform(20.0),
-                        ..SectionText::default()
-                    }],
-                )
-                .into_iter()
-                .for_each(|(positioned_glyph, _, _)| {
-                    let Point {
-                        x: x_offset,
-                        y: y_offset,
-                    } = positioned_glyph.position();
-                    positioned_glyph.draw(|x, y, v| {
-                        // This should be closer to .5 because of the gamma curve?
-                        if v > 0.25 {
-                            inky_phat.set_pixel(
-                                (x_offset as u32 + x, y_offset as u32 + y),
-                                inky_phat::BLACK,
-                            )
-                        }
-                    })
-                });
-            inky_phat.update_fast();
-        };
+        let mut display = display::Display::new();
         loop {
-            for i in 0..999 {
-                render_to_display(&mut inky_phat, &(format!("{:03}", i)));
-            }
+            display.update_power(160);
+            display.update_cadence(92);
+            display.update_heart_rate(132);
+            display.render();
+            display.update_power(161);
+            display.update_cadence(91);
+            display.update_heart_rate(132);
+            display.render();
         }
     } else if is_output_mode {
         // TODO: Should accept a cli flag for output mode vs session mode
