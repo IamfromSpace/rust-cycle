@@ -67,7 +67,7 @@ impl InkyPhat {
         }
     }
 
-    fn display_update(&mut self, buf_black: Vec<u8>, buf_red: Vec<u8>) {
+    fn display_update(&mut self, buf_black: Vec<u8>, buf_red: Vec<u8>, fast: bool) {
         self.send_command(0x44, &[0x00, 0x0c]); // Set RAM X address
         self.send_command(0x45, &[0x00, 0x00, 0xD3, 0x00, 0x00]); // Set RAM Y address + erroneous extra byte?
 
@@ -79,40 +79,62 @@ impl InkyPhat {
         self.send_command(0x3c, &[0x00]);
 
         // Send LUTs
-        self.send_command(
-            0x32,
-            &[
-                // Phase 0     Phase 1     Phase 2     Phase 3     Phase 4     Phase 5     Phase 6
-                // A B C D     A B C D     A B C D     A B C D     A B C D     A B C D     A B C D
-                0b01001000, 0b10100000, 0b00010000, 0b00010000, 0b00010011, 0b00000000,
-                0b00000000, // 0b00000000, // LUT0 - Black
-                0b01001000, 0b10100000, 0b10000000, 0b00000000, 0b00000011, 0b00000000,
-                0b00000000, // 0b00000000, // LUTT1 - White
-                0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-                0b00000000, // 0b00000000, // IGNORE
-                0b01001000, 0b10100101, 0b00000000, 0b10111011, 0b00000000, 0b00000000,
-                0b00000000, // 0b00000000, // LUT3 - Red
-                0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
-                0b00000000, // 0b00000000, // LUT4 - VCOM
-                //0xA5, 0x89, 0x10, 0x10, 0x00, 0x00, 0x00, // LUT0 - Black
-                //0xA5, 0x19, 0x80, 0x00, 0x00, 0x00, 0x00, // LUT1 - White
-                //0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // LUT2 - Red - NADA!
-                //0xA5, 0xA9, 0x9B, 0x9B, 0x00, 0x00, 0x00, // LUT3 - Red
-                //0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // LUT4 - VCOM
-
-                //       Duration              |  Repeat
-                //       A     B     C     D   |
-                67, 10, 31, 10, 4, // 0 Flash
-                16, 8, 4, 4, 6, // 1 clear
-                4, 8, 8, 32, 16, // 2 bring in the black
-                4, 8, 8, 64, 32, // 3 time for red
-                6, 6, 6, 2, 2, // 4 final black sharpen phase
-                0, 0, 0, 0, 0, // 4
-                0, 0, 0, 0, 0, // 5
-                0, 0, 0, 0, 0, // 6
-                0, 0, 0, 0, 0, // 7
-            ],
-        );
+        // Series of two bits represent the different voltages
+        // 0b00: VSS or Ground
+        // 0b01: VSH1 or 15V
+        // 0b10: VSL or -15V
+        // 0b11: VSH2 or 5.4V
+        if fast {
+            self.send_command(
+                0x32,
+                &[
+                    // Phase 0     Phase 1     Phase 2     Phase 3     Phase 4     Phase 5     Phase 6
+                    // A B C D     A B C D     A B C D     A B C D     A B C D     A B C D     A B C D
+                    0b01001000, 0b10100000, 0b00010000, 0b00010000, 0b00010011, 0b00000000,
+                    0b00000000, // 0b00000000, // LUT0 - Black
+                    0b01001000, 0b10100000, 0b10000000, 0b00000000, 0b00000011, 0b00000000,
+                    0b00000000, // 0b00000000, // LUTT1 - White
+                    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+                    0b00000000, // 0b00000000, // IGNORE
+                    0b01001000, 0b10100101, 0b00000000, 0b10111011, 0b00000000, 0b00000000,
+                    0b00000000, // 0b00000000, // LUT3 - Red
+                    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+                    0b00000000, // 0b00000000, // LUT4 - VCOM
+                    // Duration            | Repeat
+                    // A     B     C     D |
+                    0x00, 0x00, 0x00, 0x00, 0x00, // No Flash
+                    0x0C, 0x06, 0x03, 0x03, 0x01, // Clear
+                    0x03, 0x06, 0x06, 0x0C, 0x01, // Bring in the black
+                    0x00, 0x00, 0x00, 0x00, 0x00, // No Red
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+            );
+        } else {
+            self.send_command(
+                0x32,
+                &[
+                    0b01001000, 0b10100000, 0b00010000, 0b00010000, 0b00010011, 0b00000000,
+                    0b00000000, //
+                    0b01001000, 0b10100000, 0b10000000, 0b00000000, 0b00000011, 0b00000000,
+                    0b00000000, //
+                    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+                    0b00000000, //
+                    0b01001000, 0b10100101, 0b00000000, 0b10111011, 0b00000000, 0b00000000,
+                    0b00000000, //
+                    0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
+                    0b00000000, //
+                    0x10, 0x04, 0x04, 0x04, 0x04, //
+                    0x10, 0x04, 0x04, 0x04, 0x04, //
+                    0x04, 0x08, 0x08, 0x10, 0x10, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+            );
+        }
 
         self.send_command(0x44, &[0x00, 0x0c]); // Set RAM X address
         self.send_command(0x45, &[0x00, 0x00, 0xd3, 0x00]); // Set RAM Y address
@@ -155,7 +177,15 @@ impl InkyPhat {
         self.send_command(0x11, &[0x03]);
     }
 
+    pub fn update_fast(&mut self) {
+        self.get_buffers_and_update(true)
+    }
+
     pub fn update(&mut self) {
+        self.get_buffers_and_update(false)
+    }
+
+    fn get_buffers_and_update(&mut self, fast: bool) {
         self.display_init();
 
         let buf_red = pack_bits(
@@ -173,7 +203,7 @@ impl InkyPhat {
                 .collect(),
         );
 
-        self.display_update(buf_black, buf_red);
+        self.display_update(buf_black, buf_red, fast);
     }
 
     pub fn set_pixel(&mut self, p: (u32, u32), v: u8) {
