@@ -19,8 +19,8 @@ pub const WHITE: u8 = 0;
 pub const BLACK: u8 = 1;
 pub const RED: u8 = 2;
 
-pub const HEIGHT: u8 = 104;
-pub const WIDTH: u8 = 212;
+pub const HEIGHT: u32 = 104;
+pub const WIDTH: u32 = 212;
 
 pub const PALETTE: (u8, u8, u8) = (WHITE, BLACK, RED);
 
@@ -176,10 +176,13 @@ impl InkyPhat {
         self.display_update(buf_black, buf_red);
     }
 
-    pub fn set_pixel(&mut self, p: (u8, u8), v: u8) {
+    pub fn set_pixel(&mut self, p: (u32, u32), v: u8) {
         let (x, y) = p;
-        if v == PALETTE.0 || v == PALETTE.1 || v == PALETTE.2 {
-            self.buffer[(y + HEIGHT * x) as usize] = v;
+        let index = HEIGHT * (WIDTH - x - 1) + y;
+        if index < WIDTH * HEIGHT {
+            if v == PALETTE.0 || v == PALETTE.1 || v == PALETTE.2 {
+                self.buffer[index as usize] = v;
+            }
         }
     }
 
