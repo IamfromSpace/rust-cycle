@@ -186,6 +186,12 @@ impl InkyPhat {
         }
     }
 
+    pub fn clear(&mut self) {
+        for i in 0..self.buffer.len() {
+            self.buffer[i] = WHITE;
+        }
+    }
+
     fn busy_wait(&self) {
         //Wait for the e-paper driver to be ready to receive commands/data.
         while self.busy_pin.read() != Level::Low {}
