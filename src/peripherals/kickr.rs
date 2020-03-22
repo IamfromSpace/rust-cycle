@@ -24,8 +24,7 @@ const CONTROL_UUID: UUID = UUID::B128([
 pub struct Kickr<C, P> {
     peripheral: P,
     power_control_char: Characteristic,
-    // TODO: should be u16
-    target_power: Arc<Mutex<Option<u8>>>,
+    target_power: Arc<Mutex<Option<u16>>>,
     central: PhantomData<C>,
 }
 
@@ -81,7 +80,7 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
         })
     }
 
-    pub fn set_power(&self, power: u8) -> Result<()> {
+    pub fn set_power(&self, power: u16) -> Result<()> {
         // TODO: We get a notification when this is done, so if we hold the lock
         // until then, we can use eventing to ensure a good sync.
         let mut tp_guard = self.target_power.lock().unwrap();
@@ -142,9 +141,12 @@ fn unlock(kickr: &impl Peripheral) -> Result<()> {
 fn set_power(
     peripheral: &impl Peripheral,
     power_control_char: &Characteristic,
-    power: u8,
+    power: u16,
 ) -> Result<()> {
-    peripheral.request(power_control_char, &[0x42, power, 0])?;
+    peripheral.request(
+        power_control_char,
+        &[0x42, (power & 0xff) as u8, ((power >> 8) & 0xff) as u8],
+    )?;
     thread::sleep(Duration::from_secs(1));
     Ok(())
 }

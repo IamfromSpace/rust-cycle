@@ -26,7 +26,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // TODO: More complex workouts
-const POWER_TARGET: u8 = 160;
+const POWER_TARGET: u16 = 160;
 
 pub fn main() {
     env_logger::init();
