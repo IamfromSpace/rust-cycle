@@ -5,7 +5,7 @@ mod fit;
 mod inky_phat;
 mod peripherals;
 
-use ble::heart_rate_measurement::parse_hrm;
+use ble::{heart_rate_measurement::parse_hrm, revolution_data::RevolutionData};
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
 use peripherals::kickr::Kickr;
@@ -243,16 +243,6 @@ pub fn main() {
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
     let mut display = display_mutex.lock().unwrap();
     display.render_msg(msg);
-}
-
-// A Struct that does not care about bit compression
-#[derive(Debug, PartialEq, Clone)]
-pub struct RevolutionData {
-    // Total number of revolutions, this is years of data for wheels and cranks
-    revolution_count: u32,
-    // The time (in seconds) that the last revolution finished, this type is
-    // chosen because it is both lossless and holds years of data.
-    last_revolution_event_time: f64,
 }
 
 // A Struct that does not care about bit compression
