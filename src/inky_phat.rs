@@ -66,6 +66,7 @@ impl InkyPhat {
             spi,
         };
         // TODO: Rather not update, and busy_wait doesn't seem to cut it here
+        x.reset();
         x.update();
         thread::sleep(Duration::from_secs(5));
         x
