@@ -10,9 +10,9 @@ use std::time::Instant;
 pub struct Display<'a> {
     inky_phat: InkyPhat,
     fonts: Vec<Font<'a>>,
-    power: i16,
-    cadence: u8,
-    heart_rate: u8,
+    power: Option<(i16, Instant)>,
+    cadence: Option<(u8, Instant)>,
+    heart_rate: Option<(u8, Instant)>,
     start_instant: Instant,
 }
 
@@ -24,22 +24,22 @@ impl<'a> Display<'a> {
         Display {
             inky_phat,
             fonts,
-            power: 0,
-            cadence: 0,
-            heart_rate: 0,
+            power: None,
+            cadence: None,
+            heart_rate: None,
             start_instant,
         }
     }
 
-    pub fn update_power(&mut self, power: i16) {
+    pub fn update_power(&mut self, power: Option<i16>) {
         self.power = power;
     }
 
-    pub fn update_cadence(&mut self, cadence: u8) {
+    pub fn update_cadence(&mut self, cadence: Option<u8>) {
         self.cadence = cadence;
     }
 
-    pub fn update_heart_rate(&mut self, heart_rate: u8) {
+    pub fn update_heart_rate(&mut self, heart_rate: Option<u8>) {
         self.heart_rate = heart_rate;
     }
 
@@ -61,7 +61,9 @@ impl<'a> Display<'a> {
                     ..SectionText::default()
                 },
                 SectionText {
-                    text: &format!("{:03}", self.power),
+                    text: &self
+                        .power
+                        .map_or("---".to_string(), |x| format!("{:03}", x)),
                     scale: num_scale,
                     ..SectionText::default()
                 },
@@ -85,7 +87,9 @@ impl<'a> Display<'a> {
                     ..SectionText::default()
                 },
                 SectionText {
-                    text: &format!("{:03}", self.cadence),
+                    text: &self
+                        .cadence
+                        .map_or("---".to_string(), |x| format!("{:03}", x)),
                     scale: num_scale,
                     ..SectionText::default()
                 },
@@ -109,7 +113,9 @@ impl<'a> Display<'a> {
                     ..SectionText::default()
                 },
                 SectionText {
-                    text: &format!("{:03}", self.heart_rate),
+                    text: &self
+                        .heart_rate
+                        .map_or("---".to_string(), |x| format!("{:03}", x)),
                     scale: num_scale,
                     ..SectionText::default()
                 },

@@ -110,7 +110,7 @@ pub fn main() {
             let display_mutex_hrm = display_mutex.clone();
             hrm.on_notification(Box::new(move |n| {
                 let mut display = display_mutex_hrm.lock().unwrap();
-                display.update_heart_rate(parse_hrm(&n.value).bpm as u8);
+                display.update_heart_rate(Some(parse_hrm(&n.value).bpm as u8));
                 let elapsed = start.elapsed();
                 db_hrm.insert(session_key, elapsed, n).unwrap();
             }));
@@ -125,9 +125,9 @@ pub fn main() {
             kickr.on_notification(Box::new(move |n| {
                 if n.uuid == UUID::B16(0x2A63) {
                     let mut display = display_mutex_kickr.lock().unwrap();
-                    display.update_power(
+                    display.update_power(Some(
                         parse_cycling_power_measurement(&n.value).instantaneous_power,
-                    );
+                    ));
                     let elapsed = start.elapsed();
                     db_kickr.insert(session_key, elapsed, n).unwrap();
                 } else {
@@ -180,7 +180,7 @@ pub fn main() {
                     let b = csc_measure.crank.as_ref().unwrap();
                     if let Some(rpm) = overflow_protected_rpm(&a, &b) {
                         let mut display = display_mutex_cadence.lock().unwrap();
-                        display.update_cadence(rpm as u8);
+                        display.update_cadence(Some(rpm as u8));
                         stdout().flush().unwrap();
                     }
                 }
