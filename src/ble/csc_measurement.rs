@@ -54,6 +54,30 @@ pub fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
     }
 }
 
+// TODO: How to better handle overflow when managing raw/decoded data
+pub fn checked_rpm_and_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
+    if a.last_revolution_event_time == b.last_revolution_event_time {
+        None
+    } else {
+        let duration = if b.last_revolution_event_time > a.last_revolution_event_time {
+            b.last_revolution_event_time - a.last_revolution_event_time
+        } else {
+            0b100000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
+        };
+
+        let total_revolutions = if b.revolution_count > a.revolution_count {
+            b.revolution_count - a.revolution_count
+        } else {
+            0b100000 + b.revolution_count - a.revolution_count
+        };
+
+        Some((
+            total_revolutions as f64 * 60.0 / duration,
+            total_revolutions,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_csc_measurement;

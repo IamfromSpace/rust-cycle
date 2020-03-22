@@ -6,12 +6,11 @@ mod inky_phat;
 mod peripherals;
 
 use ble::{
-    csc_measurement::{parse_csc_measurement, CscMeasurement},
+    csc_measurement::{checked_rpm_and_count, parse_csc_measurement, CscMeasurement},
     cycling_power_measurement::{
         parse_cycling_power_measurement, AccumulatedTorqueSource, CyclingPowerMeasurement,
     },
     heart_rate_measurement::parse_hrm,
-    revolution_data::RevolutionData,
 };
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
@@ -250,28 +249,6 @@ pub fn main() {
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
     let mut display = display_mutex.lock().unwrap();
     display.render_msg(msg);
-}
-fn checked_rpm_and_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
-    if a.last_revolution_event_time == b.last_revolution_event_time {
-        None
-    } else {
-        let duration = if b.last_revolution_event_time > a.last_revolution_event_time {
-            b.last_revolution_event_time - a.last_revolution_event_time
-        } else {
-            0b100000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
-        };
-
-        let total_revolutions = if b.revolution_count > a.revolution_count {
-            b.revolution_count - a.revolution_count
-        } else {
-            0b100000 + b.revolution_count - a.revolution_count
-        };
-
-        Some((
-            total_revolutions as f64 * 60.0 / duration,
-            total_revolutions,
-        ))
-    }
 }
 
 fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
