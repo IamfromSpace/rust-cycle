@@ -14,6 +14,7 @@ pub struct Display<'a> {
     cadence: Option<(u8, Instant)>,
     heart_rate: Option<(u8, Instant)>,
     external_energy: f64,
+    crank_count: Option<u32>,
     start_instant: Instant,
     has_rendered: bool,
 }
@@ -30,6 +31,7 @@ impl<'a> Display<'a> {
             cadence: None,
             heart_rate: None,
             external_energy: 0.0,
+            crank_count: None,
             start_instant,
             has_rendered: false,
         }
@@ -49,6 +51,10 @@ impl<'a> Display<'a> {
 
     pub fn update_external_energy(&mut self, external_energy: f64) {
         self.external_energy = external_energy;
+    }
+
+    pub fn update_crank_count(&mut self, crank_count: u32) {
+        self.crank_count = Some(crank_count);
     }
 
     pub fn render_msg(&mut self, s: &str) {
@@ -177,7 +183,10 @@ impl<'a> Display<'a> {
                     text: &format!(
                         "{:04}",
                         // We just assume 80rpm to get crank revolutions for now
-                        metabolic_cost_in_kcal(self.external_energy, elapsed_secs * 80 / 60) as u16
+                        metabolic_cost_in_kcal(
+                            self.external_energy,
+                            self.crank_count.unwrap_or((elapsed_secs * 80 / 60) as u32)
+                        ) as u16
                     ),
                     scale: num_scale,
                     ..SectionText::default()
@@ -282,7 +291,10 @@ fn none_if_stale<T>(x: (T, Instant)) -> Option<(T, Instant)> {
     }
 }
 
-fn metabolic_cost_in_kcal(external_energy: f64, crank_revolutions: u64) -> f64 {
+// Since it's an estimate, we choose the low end (4.74 vs 5.05).  If we
+// considered level of effort we could get a better guess of fats vs carbs
+// burned.
+fn metabolic_cost_in_kcal(external_energy: f64, crank_revolutions: u32) -> f64 {
     let ml_of_oxygen = 10.38 / 60.0 * external_energy + 4.9 * crank_revolutions as f64;
     ml_of_oxygen / 1000.0 * 4.74
 }
