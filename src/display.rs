@@ -7,6 +7,8 @@ use glyph_brush_layout::{
 use std::include_bytes;
 use std::time::{Duration, Instant};
 
+// TODO: This is looking more and more like a "live workout" which has
+// some sort of "Display" trait or something.
 pub struct Display<'a> {
     inky_phat: InkyPhat,
     fonts: Vec<Font<'a>>,
