@@ -5,7 +5,7 @@ use glyph_brush_layout::{
     GlyphPositioner, Layout, SectionGeometry, SectionText,
 };
 use std::include_bytes;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub struct Display<'a> {
     inky_phat: InkyPhat,
@@ -32,15 +32,15 @@ impl<'a> Display<'a> {
     }
 
     pub fn update_power(&mut self, power: Option<i16>) {
-        self.power = power;
+        self.power = power.map(|x| (x, Instant::now()));
     }
 
     pub fn update_cadence(&mut self, cadence: Option<u8>) {
-        self.cadence = cadence;
+        self.cadence = cadence.map(|x| (x, Instant::now()));
     }
 
     pub fn update_heart_rate(&mut self, heart_rate: Option<u8>) {
-        self.heart_rate = heart_rate;
+        self.heart_rate = heart_rate.map(|x| (x, Instant::now()));
     }
 
     pub fn render(&mut self) {
@@ -48,6 +48,12 @@ impl<'a> Display<'a> {
         let height = 22.0;
         let num_scale = Scale::uniform(height);
         let units_scale = Scale::uniform(height * 0.5);
+
+        // We lazily purge any values that are older than 5s just before render
+        self.power = self.power.and_then(none_if_stale);
+        self.cadence = self.cadence.and_then(none_if_stale);
+        self.heart_rate = self.heart_rate.and_then(none_if_stale);
+
         let p = Layout::default().calculate_glyphs(
             &self.fonts,
             &SectionGeometry {
@@ -63,7 +69,7 @@ impl<'a> Display<'a> {
                 SectionText {
                     text: &self
                         .power
-                        .map_or("---".to_string(), |x| format!("{:03}", x)),
+                        .map_or("---".to_string(), |x| format!("{:03}", x.0)),
                     scale: num_scale,
                     ..SectionText::default()
                 },
@@ -89,7 +95,7 @@ impl<'a> Display<'a> {
                 SectionText {
                     text: &self
                         .cadence
-                        .map_or("---".to_string(), |x| format!("{:03}", x)),
+                        .map_or("---".to_string(), |x| format!("{:03}", x.0)),
                     scale: num_scale,
                     ..SectionText::default()
                 },
@@ -115,7 +121,7 @@ impl<'a> Display<'a> {
                 SectionText {
                     text: &self
                         .heart_rate
-                        .map_or("---".to_string(), |x| format!("{:03}", x)),
+                        .map_or("---".to_string(), |x| format!("{:03}", x.0)),
                     scale: num_scale,
                     ..SectionText::default()
                 },
@@ -197,5 +203,13 @@ impl<'a> Display<'a> {
             })
         });
         self.inky_phat.update_fast();
+    }
+}
+
+fn none_if_stale<T>(x: (T, Instant)) -> Option<(T, Instant)> {
+    if x.1.elapsed() > Duration::from_secs(5) {
+        None
+    } else {
+        Some(x)
     }
 }
