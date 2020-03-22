@@ -14,6 +14,7 @@ pub struct Display<'a> {
     cadence: Option<(u8, Instant)>,
     heart_rate: Option<(u8, Instant)>,
     start_instant: Instant,
+    has_rendered: bool,
 }
 
 impl<'a> Display<'a> {
@@ -28,6 +29,7 @@ impl<'a> Display<'a> {
             cadence: None,
             heart_rate: None,
             start_instant,
+            has_rendered: false,
         }
     }
 
@@ -202,7 +204,15 @@ impl<'a> Display<'a> {
                 })
             })
         });
-        self.inky_phat.update_fast();
+
+        // TODO: This seems a bit silly, but otherwise the display starts out
+        // quite faint.
+        if self.has_rendered {
+            self.inky_phat.update_fast();
+        } else {
+            self.has_rendered = true;
+            self.inky_phat.update();
+        }
     }
 }
 
