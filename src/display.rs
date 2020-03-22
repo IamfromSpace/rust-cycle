@@ -13,6 +13,7 @@ pub struct Display<'a> {
     power: Option<(i16, Instant)>,
     cadence: Option<(u8, Instant)>,
     heart_rate: Option<(u8, Instant)>,
+    external_energy: f64,
     start_instant: Instant,
     has_rendered: bool,
 }
@@ -28,6 +29,7 @@ impl<'a> Display<'a> {
             power: None,
             cadence: None,
             heart_rate: None,
+            external_energy: 0.0,
             start_instant,
             has_rendered: false,
         }
@@ -43,6 +45,10 @@ impl<'a> Display<'a> {
 
     pub fn update_heart_rate(&mut self, heart_rate: Option<u8>) {
         self.heart_rate = heart_rate.map(|x| (x, Instant::now()));
+    }
+
+    pub fn update_external_energy(&mut self, external_energy: f64) {
+        self.external_energy = external_energy;
     }
 
     pub fn render_msg(&mut self, s: &str) {
@@ -154,8 +160,36 @@ impl<'a> Display<'a> {
                 },
             ],
         );
-        let time_scale = Scale::uniform(height * 0.75);
         let elapsed_secs = self.start_instant.elapsed().as_secs();
+        let e = Layout::default().calculate_glyphs(
+            &self.fonts,
+            &SectionGeometry {
+                screen_position: (5.0, height * 3.0),
+                bounds: (WIDTH as f32, HEIGHT as f32),
+            },
+            &[
+                SectionText {
+                    text: "ME ",
+                    scale: units_scale,
+                    ..SectionText::default()
+                },
+                SectionText {
+                    text: &format!(
+                        "{:04}",
+                        // We just assume 80rpm to get crank revolutions for now
+                        metabolic_cost_in_kcal(self.external_energy, elapsed_secs * 80 / 60) as u16
+                    ),
+                    scale: num_scale,
+                    ..SectionText::default()
+                },
+                SectionText {
+                    text: "KCAL",
+                    scale: units_scale,
+                    ..SectionText::default()
+                },
+            ],
+        );
+        let time_scale = Scale::uniform(height * 0.75);
         let t1 = Layout::default().calculate_glyphs(
             &self.fonts,
             &SectionGeometry {
@@ -209,7 +243,7 @@ impl<'a> Display<'a> {
                 ..SectionText::default()
             }],
         );
-        self.draw(&vec![p, c, h, t1, t2, d1, d2]);
+        self.draw(&vec![p, c, h, e, t1, t2, d1, d2]);
 
         // TODO: This seems a bit silly, but otherwise the display starts out
         // quite faint.
@@ -246,4 +280,9 @@ fn none_if_stale<T>(x: (T, Instant)) -> Option<(T, Instant)> {
     } else {
         Some(x)
     }
+}
+
+fn metabolic_cost_in_kcal(external_energy: f64, crank_revolutions: u64) -> f64 {
+    let ml_of_oxygen = 10.38 / 60.0 * external_energy + 4.9 * crank_revolutions as f64;
+    ml_of_oxygen / 1000.0 * 4.74
 }
