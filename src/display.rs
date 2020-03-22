@@ -1,7 +1,7 @@
 use crate::inky_phat::{InkyPhat, BLACK, HEIGHT, WIDTH};
 use chrono::Local;
 use glyph_brush_layout::{
-    rusttype::{Font, Point, Scale},
+    rusttype::{Font, Point, PositionedGlyph, Scale},
     GlyphPositioner, Layout, SectionGeometry, SectionText,
 };
 use std::include_bytes;
@@ -189,7 +189,20 @@ impl<'a> Display<'a> {
                 ..SectionText::default()
             }],
         );
-        vec![p, c, h, t1, t2, d1, d2].iter().for_each(|v| {
+        self.draw(&vec![p, c, h, t1, t2, d1, d2]);
+
+        // TODO: This seems a bit silly, but otherwise the display starts out
+        // quite faint.
+        if self.has_rendered {
+            self.inky_phat.update_fast();
+        } else {
+            self.has_rendered = true;
+            self.inky_phat.update();
+        }
+    }
+
+    fn draw<B, C>(&mut self, v: &Vec<Vec<(PositionedGlyph, B, C)>>) {
+        v.iter().for_each(|v| {
             v.into_iter().for_each(|(positioned_glyph, _, _)| {
                 let Point {
                     x: x_offset,
@@ -204,15 +217,6 @@ impl<'a> Display<'a> {
                 })
             })
         });
-
-        // TODO: This seems a bit silly, but otherwise the display starts out
-        // quite faint.
-        if self.has_rendered {
-            self.inky_phat.update_fast();
-        } else {
-            self.has_rendered = true;
-            self.inky_phat.update();
-        }
     }
 }
 
