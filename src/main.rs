@@ -195,7 +195,7 @@ pub fn main() {
                 if let Some(last_cadence_measure) = last_cadence_measure {
                     let a = last_cadence_measure.crank.unwrap();
                     let b = csc_measure.crank.as_ref().unwrap();
-                    if let Some((rpm, crank_count)) = overflow_protected_rpm_and_count(&a, &b) {
+                    if let Some((rpm, crank_count)) = checked_rpm_and_count(&a, &b) {
                         let mut display = display_mutex_cadence.lock().unwrap();
                         display.update_cadence(Some(rpm as u8));
                         display.update_crank_count(crank_count);
@@ -470,7 +470,7 @@ fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasurement {
     }
 }
 
-fn overflow_protected_rpm_and_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
+fn checked_rpm_and_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
     if a.last_revolution_event_time == b.last_revolution_event_time {
         None
     } else {
@@ -539,7 +539,7 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
                     if let Some(lcm) = last_csc_measurement {
                         let a = lcm.crank.unwrap();
                         let b = csc_measurement.crank.clone().unwrap();
-                        if let Some((rpm, _)) = overflow_protected_rpm_and_count(&a, &b) {
+                        if let Some((rpm, _)) = checked_rpm_and_count(&a, &b) {
                             r.cadence = Some(rpm as u8);
                         }
                     }
