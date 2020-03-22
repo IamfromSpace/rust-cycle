@@ -1,5 +1,6 @@
 mod ble;
 mod char_db;
+mod cycle_tree;
 mod display;
 mod fit;
 mod inky_phat;
