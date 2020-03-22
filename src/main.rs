@@ -56,6 +56,7 @@ pub fn main() {
             .as_secs();
 
         println!("Getting Manager...");
+        lock_and_show(&display_mutex, &"Getting Started");
         let manager = Manager::new().unwrap();
 
         let mut adapter = manager.adapters().unwrap().into_iter().next().unwrap();
@@ -70,12 +71,14 @@ pub fn main() {
         central.active(true);
 
         println!("Starting Scan...");
+        lock_and_show(&display_mutex, &"Scanning for Devices");
         central.start_scan().unwrap();
 
         thread::sleep(Duration::from_secs(5));
 
         println!("Stopping scan...");
         central.stop_scan().unwrap();
+        lock_and_show(&display_mutex, &"Scan Complete! Connecting to Devices.");
 
         if use_hr {
             // Connect to HRM and print its parsed notifications
@@ -114,6 +117,7 @@ pub fn main() {
                 let elapsed = start.elapsed();
                 db_hrm.insert(session_key, elapsed, n).unwrap();
             }));
+            lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
         }
 
         if use_power {
@@ -136,6 +140,7 @@ pub fn main() {
             }));
 
             kickr.set_power(POWER_TARGET).unwrap();
+            lock_and_show(&display_mutex, &"Setup Complete for Kickr");
         }
 
         if use_cadence {
@@ -187,6 +192,7 @@ pub fn main() {
                 o_last_cadence_measure = Some(csc_measure);
                 db_cadence_measure.insert(session_key, elapsed, n).unwrap();
             }));
+            lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
         }
 
         let central_for_disconnects = central.clone();
@@ -217,6 +223,11 @@ pub fn main() {
 
         thread::park();
     }
+}
+
+fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
+    let mut display = display_mutex.lock().unwrap();
+    display.render_msg(msg);
 }
 
 // A Struct that does not care about bit compression
