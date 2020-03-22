@@ -2,7 +2,7 @@ use crate::inky_phat::{InkyPhat, BLACK, HEIGHT, WIDTH};
 use chrono::Local;
 use glyph_brush_layout::{
     rusttype::{Font, Point, PositionedGlyph, Scale},
-    GlyphPositioner, Layout, SectionGeometry, SectionText,
+    GlyphPositioner, HorizontalAlign, Layout, SectionGeometry, SectionText, VerticalAlign,
 };
 use std::include_bytes;
 use std::time::{Duration, Instant};
@@ -43,6 +43,26 @@ impl<'a> Display<'a> {
 
     pub fn update_heart_rate(&mut self, heart_rate: Option<u8>) {
         self.heart_rate = heart_rate.map(|x| (x, Instant::now()));
+    }
+
+    pub fn render_msg(&mut self, s: &str) {
+        self.inky_phat.clear();
+        self.draw(&vec![Layout::default_wrap()
+            .h_align(HorizontalAlign::Center)
+            .v_align(VerticalAlign::Center)
+            .calculate_glyphs(
+                &self.fonts,
+                &SectionGeometry {
+                    screen_position: (WIDTH as f32 * 0.5, HEIGHT as f32 * 0.5 - 15.0),
+                    bounds: (WIDTH as f32 - 20.0, HEIGHT as f32 - 20.0),
+                },
+                &[SectionText {
+                    text: &s,
+                    scale: Scale::uniform(20.0),
+                    ..SectionText::default()
+                }],
+            )]);
+        self.inky_phat.update();
     }
 
     pub fn render(&mut self) {
