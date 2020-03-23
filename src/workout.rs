@@ -85,3 +85,18 @@ pub fn create_big_start_interval(
         None,
     )
 }
+
+#[allow(dead_code)]
+// TODO: This could include Set/Add/Sub and then be 50 cycles of Add(15) each 30s
+// Warm up for 5 minutes, then increase power by 15W every 30s until the subject
+// must stop.
+pub fn ramp_test(warmup_power: u16) -> Workout {
+    let mut v = Vec::with_capacity(50);
+    v.push(CycleTree::Leaf((Duration::from_secs(300), warmup_power)));
+    let mut power = 100;
+    for _ in 0..49 {
+        v.push(CycleTree::Leaf((Duration::from_secs(30), warmup_power)));
+        power = power + 15
+    }
+    (CycleTree::Node((1, v)), None)
+}
