@@ -7,7 +7,7 @@ mod inky_phat;
 mod peripherals;
 
 use ble::{
-    csc_measurement::{checked_rpm_and_count, parse_csc_measurement, CscMeasurement},
+    csc_measurement::{checked_rpm_and_new_count, parse_csc_measurement, CscMeasurement},
     cycling_power_measurement::{
         parse_cycling_power_measurement, AccumulatedTorqueSource, CyclingPowerMeasurement,
     },
@@ -195,6 +195,7 @@ pub fn main() {
             println!("Subscribed to cadence measure");
 
             let mut o_last_cadence_measure: Option<CscMeasurement> = None;
+            let mut crank_count = 0;
             let db_cadence_measure = db.clone();
             let display_mutex_cadence = display_mutex.clone();
             cadence_measure.on_notification(Box::new(move |n| {
@@ -204,7 +205,8 @@ pub fn main() {
                 if let Some(last_cadence_measure) = last_cadence_measure {
                     let a = last_cadence_measure.crank.unwrap();
                     let b = csc_measure.crank.as_ref().unwrap();
-                    if let Some((rpm, crank_count)) = checked_rpm_and_count(&a, &b) {
+                    if let Some((rpm, new_crank_count)) = checked_rpm_and_new_count(&a, &b) {
+                        crank_count = crank_count + new_crank_count;
                         let mut display = display_mutex_cadence.lock().unwrap();
                         display.update_cadence(Some(rpm as u8));
                         display.update_crank_count(crank_count);
@@ -298,7 +300,7 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
                     if let Some(lcm) = last_csc_measurement {
                         let a = lcm.crank.unwrap();
                         let b = csc_measurement.crank.clone().unwrap();
-                        if let Some((rpm, _)) = checked_rpm_and_count(&a, &b) {
+                        if let Some((rpm, _)) = checked_rpm_and_new_count(&a, &b) {
                             r.cadence = Some(rpm as u8);
                         }
                     }

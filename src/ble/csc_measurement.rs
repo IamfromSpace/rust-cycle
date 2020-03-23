@@ -55,7 +55,7 @@ pub fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
 }
 
 // TODO: How to better handle overflow when managing raw/decoded data
-pub fn checked_rpm_and_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
+pub fn checked_rpm_and_new_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
     if a.last_revolution_event_time == b.last_revolution_event_time {
         None
     } else {
