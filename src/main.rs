@@ -5,6 +5,7 @@ mod display;
 mod fit;
 mod inky_phat;
 mod peripherals;
+mod workout;
 
 use ble::{
     csc_measurement::{checked_rpm_and_new_count, parse_csc_measurement, CscMeasurement},
@@ -24,9 +25,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-
-// TODO: More complex workouts
-const POWER_TARGET: u16 = 160;
+use workout::{run_workout, single_value};
 
 pub fn main() {
     env_logger::init();
@@ -160,7 +159,13 @@ pub fn main() {
                 }
             }));
 
-            kickr.set_power(POWER_TARGET).unwrap();
+            // run our workout
+            thread::spawn(move || loop {
+                run_workout(Instant::now(), single_value(160), |p| {
+                    kickr.set_power(p).unwrap();
+                })
+            });
+
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
         }
 
