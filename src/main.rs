@@ -151,7 +151,7 @@ pub fn main() {
                     let b = power_reading.accumulated_torque.unwrap().1;
                     acc_torque = acc_torque + b - a + if a > b { 2048.0 } else { 0.0 };
                     display.update_power(Some(power_reading.instantaneous_power));
-                    display.update_external_energy(std::f64::consts::PI * acc_torque);
+                    display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
                     last_power_reading = power_reading;
                     let elapsed = start.elapsed();
                     db_kickr.insert(session_key, elapsed, n).unwrap();
