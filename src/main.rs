@@ -1,4 +1,5 @@
 mod ble;
+mod buttons;
 mod char_db;
 mod cycle_tree;
 mod display;
