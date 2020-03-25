@@ -79,6 +79,40 @@ impl<'a> Display<'a> {
         self.inky_phat.update();
     }
 
+    pub fn render_options(&mut self, options: &Vec<&str>) {
+        self.inky_phat.clear();
+        let mut drawable = Vec::with_capacity(options.len() + 4);
+        for i in 0..options.len() {
+            let option_num = i + 2;
+            drawable.push(Layout::default().calculate_glyphs(
+                &self.fonts,
+                &SectionGeometry {
+                    screen_position: (10.0, i as f32 * 20.0 - 10.0),
+                    ..SectionGeometry::default()
+                },
+                &[SectionText {
+                    text: &format!("{}:{}", option_num, options[i]),
+                    scale: Scale::uniform(20.0),
+                    ..SectionText::default()
+                }],
+            ));
+            drawable.push(Layout::default().calculate_glyphs(
+                &self.fonts,
+                &SectionGeometry {
+                    screen_position: (28.0 + i as f32 * 37.5, 73.0),
+                    ..SectionGeometry::default()
+                },
+                &[SectionText {
+                    text: &option_num.to_string(),
+                    scale: Scale::uniform(20.0),
+                    ..SectionText::default()
+                }],
+            ));
+        }
+        self.draw(&drawable);
+        self.inky_phat.update();
+    }
+
     pub fn render(&mut self) {
         self.inky_phat.clear();
         let height = 22.0;
