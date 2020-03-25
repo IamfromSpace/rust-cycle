@@ -60,6 +60,8 @@ impl Buttons {
             ButtonHandler::new(),
         ]));
 
+        // TODO: Handlers should really execute in a separate thread.  This is a bit more
+        // challenging to do for FnMut handlers (because they're stateful).
         let handlers_mutex_thread = handlers_mutex.clone();
         thread::spawn(move || {
             loop {
