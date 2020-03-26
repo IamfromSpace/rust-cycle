@@ -255,6 +255,85 @@ pub fn main() {
     }
 }
 
+fn selection(
+    display: &mut display::Display,
+    buttons: &mut buttons::Buttons,
+    x: &Vec<&str>,
+) -> String {
+    if x.len() < 1 || x.len() > 4 {
+        panic!("Unsupported selection length!");
+    }
+
+    let choice = Arc::new(Mutex::new(None));
+
+    let choice_button = choice.clone();
+    if let Some(x_str) = x.get(0).map(|x| x.to_string()) {
+        buttons.on_press(
+            buttons::Button::ButtonB,
+            Box::new(move || {
+                let mut choice = choice_button.lock().unwrap();
+                if let None = *choice {
+                    *choice = Some(x_str.clone());
+                }
+            }),
+        );
+    }
+
+    let choice_button = choice.clone();
+    if let Some(x_str) = x.get(1).map(|x| x.to_string()) {
+        buttons.on_press(
+            buttons::Button::ButtonC,
+            Box::new(move || {
+                let mut choice = choice_button.lock().unwrap();
+                if let None = *choice {
+                    *choice = Some(x_str.clone());
+                }
+            }),
+        );
+    }
+
+    let choice_button = choice.clone();
+    if let Some(x_str) = x.get(2).map(|x| x.to_string()) {
+        buttons.on_press(
+            buttons::Button::ButtonD,
+            Box::new(move || {
+                let mut choice = choice_button.lock().unwrap();
+                if let None = *choice {
+                    *choice = Some(x_str.clone());
+                }
+            }),
+        );
+    }
+
+    let choice_button = choice.clone();
+    if let Some(x_str) = x.get(3).map(|x| x.to_string()) {
+        buttons.on_press(
+            buttons::Button::ButtonE,
+            Box::new(move || {
+                let mut choice = choice_button.lock().unwrap();
+                if let None = *choice {
+                    *choice = Some(x_str.clone());
+                }
+            }),
+        );
+    }
+
+    display.render_options(&x);
+
+    let result = loop {
+        let or = choice.lock().unwrap();
+        if let Some(r) = or.as_ref() {
+            break r.clone();
+        }
+        thread::sleep(Duration::from_millis(15));
+    };
+    buttons.clear_handlers(buttons::Button::ButtonB);
+    buttons.clear_handlers(buttons::Button::ButtonC);
+    buttons.clear_handlers(buttons::Button::ButtonD);
+    buttons.clear_handlers(buttons::Button::ButtonE);
+    result
+}
+
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
     let mut display = display_mutex.lock().unwrap();
     display.render_msg(msg);
