@@ -1,0 +1,13 @@
+[Unit]
+Description=Operate as a Bike Computer
+After=network.target
+
+[Service]
+Type=idle
+ExecStart=${PATH_TO_BINARY_ON_TARGET}
+WorkingDirectory=${WHERE_DB_WILL_BE_OPERATED}
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target

@@ -34,3 +34,25 @@ This has to be done on every new build!
 ```
 sudo setcap 'cap_net_raw,cap_net_admin+eip' ${BINARY}
 ```
+
+#### Run on Startup
+
+From the host, fill in the `misc/rust-cycle.service` file and send it to the target.
+
+```
+scp misc/rust-cycle.service pi@raspberrypi:~/Downloads/
+```
+
+Then add the service into the pi's set of services.
+
+```
+sudo mv ~/Downloads/rust-cycle.service /etc/systemd/system/
+```
+
+On the target, enable the service:
+
+```
+sudo systemctl enable rust-cycle.service
+```
+
+On reboot, the application will start.
