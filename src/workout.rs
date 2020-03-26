@@ -12,9 +12,10 @@ pub type Workout = (CycleTree<(Duration, u16)>, Option<u16>);
 // *** Note that this will completely hi-jack your thread! ***
 // This also eventually self-corrects any drift, because we always target the
 // correct total time for our changes.
-pub fn run_workout<F: Fn(u16)>(start: Instant, workout: Workout, set_power: F) {
+pub fn run_workout<F: Fn(u16)>(start: Instant, workout: &Workout, set_power: F) {
     let mut d = Duration::from_secs(0);
-    for (wait, power) in workout.0.into_iter() {
+    // TODO: Avoid clone here
+    for (wait, power) in workout.0.clone().into_iter() {
         // Overflow is not a consideration for the timeline of a single workout
         d = d.checked_add(wait).unwrap();
         let e = start.elapsed();

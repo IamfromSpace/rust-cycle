@@ -162,7 +162,7 @@ pub fn main() {
 
             // run our workout
             thread::spawn(move || loop {
-                run_workout(Instant::now(), single_value(160), |p| {
+                run_workout(Instant::now(), &single_value(160), |p| {
                     kickr.set_power(p).unwrap();
                 })
             });
