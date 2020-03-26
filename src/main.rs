@@ -26,19 +26,13 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use workout::{run_workout, single_value};
+use workout::{ramp_test, run_workout, single_value};
 
 pub fn main() {
     env_logger::init();
 
     let args: BTreeSet<String> = env::args().collect();
-    let use_hr = args.is_empty() || args.contains("--hr");
-    let use_cadence = args.is_empty() || args.contains("--cadence");
-    let use_power = args.is_empty() || args.contains("--power");
     let is_output_mode = args.is_empty() || args.contains("--output");
-    if !use_hr && !use_cadence && !use_power && !is_output_mode {
-        panic!("No metrics/mode selected!");
-    }
 
     let db = char_db::open_default().unwrap();
 
@@ -50,12 +44,46 @@ pub fn main() {
             .write_all(&db_session_to_fit(&db, most_recent_session)[..])
             .unwrap();
     } else {
+        // Create Our Display
+        let mut display = display::Display::new(Instant::now());
+
+        // Create our Buttons
+        let mut buttons = buttons::Buttons::new();
+
+        let profile = selection(&mut display, &mut buttons, &vec!["Zenia", "Nathan"]);
+
+        // TODO: Select Enums
+        let workout_name = match profile.as_str() {
+            "Zenia" => selection(&mut display, &mut buttons, &vec!["100W"]),
+            "Nathan" => selection(&mut display, &mut buttons, &vec!["Fixed", "Ramp"]),
+            _ => panic!("Unexpected profile!"),
+        };
+
+        let workout_name = match workout_name.as_str() {
+            "Fixed" => selection(
+                &mut display,
+                &mut buttons,
+                &vec!["170W", "175W", "180W", "185W"],
+            ),
+            _ => workout_name,
+        };
+
+        let (use_hr, use_power, use_cadence, workout) = match workout_name.as_str() {
+            "100W" => (false, true, false, single_value(100)),
+            "170W" => (true, true, true, single_value(170)),
+            "175W" => (true, true, true, single_value(175)),
+            "180W" => (true, true, true, single_value(180)),
+            "185W" => (true, true, true, single_value(185)),
+            "Ramp" => (true, true, true, ramp_test(120)),
+            _ => panic!("Unexpected workout_name!"),
+        };
+
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
         let start = Instant::now();
 
         // Create Our Display
-        let display_mutex = Arc::new(Mutex::new(display::Display::new(Instant::now())));
+        let display_mutex = Arc::new(Mutex::new(display));
 
         // This won't fail unless the clock is before epoch, which sounds like a
         // bigger problem
@@ -65,7 +93,10 @@ pub fn main() {
             .as_secs();
 
         println!("Getting Manager...");
-        lock_and_show(&display_mutex, &"Getting Started");
+        lock_and_show(
+            &display_mutex,
+            &format!("Welcome, {}, running {}", profile, workout_name),
+        );
         let manager = Manager::new().unwrap();
 
         let mut adapter = manager.adapters().unwrap().into_iter().next().unwrap();
@@ -162,7 +193,7 @@ pub fn main() {
 
             // run our workout
             thread::spawn(move || loop {
-                run_workout(Instant::now(), &single_value(160), |p| {
+                run_workout(Instant::now(), &workout, |p| {
                     kickr.set_power(p).unwrap();
                 })
             });
