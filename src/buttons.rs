@@ -10,6 +10,7 @@ const ADDR: u16 = 0x3f;
 const REG_INPUT: u8 = 0x00;
 const REG_CONFIG: u8 = 0x03;
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Button {
     ButtonA,
     ButtonB,
