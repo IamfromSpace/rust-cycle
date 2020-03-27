@@ -90,33 +90,14 @@ pub fn main() {
             .unwrap()
             .as_secs();
 
-        println!("Getting Manager...");
         lock_and_show(
             &display_mutex,
             &format!("Welcome, {}, running {}", profile, workout_name),
         );
-        let manager = Manager::new().unwrap();
 
-        let mut adapter = manager.adapters().unwrap().into_iter().next().unwrap();
-
-        adapter = manager.down(&adapter).unwrap();
-        adapter = manager.up(&adapter).unwrap();
-
-        let central = adapter.connect().unwrap();
-        // There's a bug in 0.4 that does not default the scan to active.
-        // Without an active scan the Polar H10 will not give back its name.
-        // TODO: remove this line after merge and upgrade.
-        central.active(true);
-
-        println!("Starting Scan...");
-        lock_and_show(&display_mutex, &"Scanning for Devices");
-        central.start_scan().unwrap();
-
-        thread::sleep(Duration::from_secs(5));
-
-        println!("Stopping scan...");
-        central.stop_scan().unwrap();
-        lock_and_show(&display_mutex, &"Scan Complete! Connecting to Devices.");
+        lock_and_show(&display_mutex, &"Setting up Bluetooth");
+        let central = setup_ble_and_discover_devices().unwrap().unwrap();
+        lock_and_show(&display_mutex, &"Connecting to Devices.");
 
         if use_hr {
             // Connect to HRM and print its parsed notifications
@@ -354,6 +335,41 @@ fn selection(
     }
 
     result
+}
+
+// Creates a manager, adapter, and connects it to create a central.  That
+// central preforms a 5s scan, and then that central is returned.  This returns
+// a Error if there was a BLE error, and it returns an Ok(None) if there are no
+// adapters available.
+fn setup_ble_and_discover_devices(
+) -> btleplug::Result<Option<btleplug::bluez::adapter::ConnectedAdapter>> {
+    println!("Getting Manager...");
+    let manager = Manager::new()?;
+
+    let adapters = manager.adapters()?;
+
+    match adapters.into_iter().next() {
+        Some(adapter) => {
+            manager.down(&adapter)?;
+            manager.up(&adapter)?;
+
+            let central = adapter.connect()?;
+            // There's a bug in 0.4 that does not default the scan to active.
+            // Without an active scan the Polar H10 will not give back its name.
+            // TODO: remove this line after merge and upgrade.
+            central.active(true);
+
+            println!("Starting Scan...");
+            central.start_scan()?;
+
+            thread::sleep(Duration::from_secs(5));
+
+            println!("Stopping scan...");
+            central.stop_scan()?;
+            Ok(Some(central))
+        }
+        None => Ok(None),
+    }
 }
 
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
