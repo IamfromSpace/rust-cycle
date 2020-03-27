@@ -10,9 +10,7 @@ mod workout;
 
 use ble::{
     csc_measurement::{checked_rpm_and_new_count, parse_csc_measurement, CscMeasurement},
-    cycling_power_measurement::{
-        parse_cycling_power_measurement, AccumulatedTorqueSource, CyclingPowerMeasurement,
-    },
+    cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
@@ -166,24 +164,20 @@ pub fn main() {
 
             let db_kickr = db.clone();
             let display_mutex_kickr = display_mutex.clone();
-            let mut last_power_reading = CyclingPowerMeasurement {
-                instantaneous_power: 0,
-                pedal_power_balance_percent: None,
-                accumulated_torque: Some((AccumulatedTorqueSource::Wheel, 0.0)),
-                wheel_revolution_data: None,
-                crank_revolution_data: None,
-            };
+            let mut o_last_power_reading: Option<CyclingPowerMeasurement> = None;
             let mut acc_torque = 0.0;
             kickr.on_notification(Box::new(move |n| {
                 if n.uuid == UUID::B16(0x2A63) {
                     let mut display = display_mutex_kickr.lock().unwrap();
                     let power_reading = parse_cycling_power_measurement(&n.value);
-                    let a = last_power_reading.accumulated_torque.unwrap().1;
-                    let b = power_reading.accumulated_torque.unwrap().1;
-                    acc_torque = acc_torque + b - a + if a > b { 2048.0 } else { 0.0 };
-                    display.update_power(Some(power_reading.instantaneous_power));
-                    display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
-                    last_power_reading = power_reading;
+                    if let Some(last_power_reading) = o_last_power_reading.as_ref() {
+                        let a = last_power_reading.accumulated_torque.unwrap().1;
+                        let b = power_reading.accumulated_torque.unwrap().1;
+                        acc_torque = acc_torque + b - a + if a > b { 2048.0 } else { 0.0 };
+                        display.update_power(Some(power_reading.instantaneous_power));
+                        display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                    }
+                    o_last_power_reading = Some(power_reading);
                     let elapsed = start.elapsed();
                     db_kickr.insert(session_key, elapsed, n).unwrap();
                 } else {
