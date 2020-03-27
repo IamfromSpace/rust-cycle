@@ -269,14 +269,41 @@ pub fn main() {
             }
         }));
 
+        let m_will_shutdown = Arc::new(Mutex::new(false));
+        let m_will_shutdown_for_button = m_will_shutdown.clone();
+        buttons.on_hold(
+            buttons::Button::ButtonA,
+            Duration::from_secs(5),
+            Box::new(move || {
+                let mut will_shutdown = m_will_shutdown_for_button.lock().unwrap();
+                *will_shutdown = true;
+            }),
+        );
+
         // Update it every second
         let display_mutex_for_render = display_mutex.clone();
-        thread::spawn(move || loop {
+        let m_will_shutdown_for_render = m_will_shutdown.clone();
+        let render_handle = thread::spawn(move || loop {
+            {
+                if *m_will_shutdown_for_render.lock().unwrap() {
+                    break;
+                }
+            };
             let mut display = display_mutex_for_render.lock().unwrap();
             display.render();
         });
 
-        thread::park();
+        render_handle.join().unwrap();
+        lock_and_show(&display_mutex, &"Goodbye");
+        thread::sleep(Duration::from_secs(1));
+
+        // TODO: This only works _during_ a workout
+        println!("Powering off");
+        std::process::Command::new("sudo")
+            .arg("shutdown")
+            .arg("now")
+            .output()
+            .unwrap();
     }
 }
 
