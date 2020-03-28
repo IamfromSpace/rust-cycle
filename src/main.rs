@@ -24,7 +24,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use workout::{create_big_start_interval, ramp_test, run_workout, single_value};
+use workout::{create_big_start_interval, ramp_test, single_value};
 
 pub fn main() {
     env_logger::init();
@@ -156,9 +156,7 @@ pub fn main() {
             None
         };
 
-        // TODO: Because the kickr is sent into the workout thread, it's
-        // currently impossible to drop it.
-        if use_power {
+        let kickr_and_handle = if use_power {
             // Connect to Kickr and print its raw notifications
             let kickr = or_crash_with_msg(
                 &display_mutex,
@@ -191,14 +189,24 @@ pub fn main() {
             }));
 
             // run our workout
-            thread::spawn(move || {
-                run_workout(Instant::now(), &workout, |p| {
-                    kickr.set_power(p).unwrap();
-                })
+            // Our workout will drop the closure after the workout ends (last
+            // power_set) and if we don't hold a reference to our kickr, it will
+            // be dropped along with the closure.  Dropping the kickr ends all
+            // of its subscriptions.
+            // TODO: Maybe all workouts should have an explicit end, rather than
+            // a tail?  That would make this more intuitive.  Then at the end of
+            // the workout, the program exits (and systemd restarts it).
+            let kickr = Arc::new(kickr);
+            let kickr_for_workout = kickr.clone();
+            let workout_handle = workout.run(Instant::now(), move |p| {
+                kickr_for_workout.set_power(p).unwrap();
             });
 
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
-        }
+            Some((workout_handle, kickr))
+        } else {
+            None
+        };
 
         // We need to bind to keep our cadence peripheral until the end of the scope
         let _cadence = if use_cadence {
@@ -258,10 +266,11 @@ pub fn main() {
             display.render();
         });
 
+        if let Some((mut wh, _)) = kickr_and_handle {
+            wh.exit();
+        }
         render_handle.join().unwrap();
         lock_and_show(&display_mutex, &"Goodbye");
-        // TODO: Remove once Kickr can be dropped
-        thread::sleep(Duration::from_secs(5));
     }
 }
 
