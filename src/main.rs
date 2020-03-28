@@ -159,7 +159,7 @@ pub fn main() {
 
         if use_power {
             // Connect to Kickr and print its raw notifications
-            let kickr = Kickr::new(central.clone()).unwrap();
+            let kickr = Kickr::new(central.clone()).unwrap().unwrap();
 
             let db_kickr = db.clone();
             let display_mutex_kickr = display_mutex.clone();

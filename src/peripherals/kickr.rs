@@ -29,55 +29,60 @@ pub struct Kickr<C, P> {
 }
 
 impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
-    // TODO: It may make sense to separate out new (Optional) and connect
-    // (Result).  For this app, we really only care about permanently
-    // connecting (but it would be nice to clean up connections on exit).
-    pub fn new(central: C) -> Result<Self> {
-        let peripheral = central.peripherals().into_iter().find(is_kickr).unwrap();
+    // TODO: It may make sense to use Type States to separate out new (Optional)
+    // and connect (Result).  For this app, we really only care about
+    // permanently connecting (but it would be nice to clean up connections on
+    // exit).
+    pub fn new(central: C) -> Result<Option<Self>> {
+        match central.peripherals().into_iter().find(is_kickr) {
+            None => Ok(None),
+            Some(peripheral) => {
+                peripheral.connect()?;
+                println!("Connected to KICKR");
 
-        peripheral.connect()?;
-        println!("Connected to KICKR");
+                peripheral.discover_characteristics()?;
+                println!("All characteristics discovered");
 
-        peripheral.discover_characteristics()?;
-        println!("All characteristics discovered");
+                first_time_setup(&peripheral)?;
+                unlock(&peripheral)?;
 
-        first_time_setup(&peripheral)?;
-        unlock(&peripheral)?;
+                let power_control_char = peripheral
+                    .characteristics()
+                    .into_iter()
+                    .find(|c| c.uuid == CONTROL_UUID)
+                    // Kickr with a Control UUID is an invariant
+                    .unwrap();
 
-        let power_control_char = peripheral
-            .characteristics()
-            .into_iter()
-            .find(|c| c.uuid == CONTROL_UUID)
-            .unwrap();
+                let target_power = Arc::new(Mutex::new(None));
 
-        let target_power = Arc::new(Mutex::new(None));
+                let central_for_disconnects = central.clone();
+                let tp_for_disconnects = target_power.clone();
+                let pcc_for_disconnects = power_control_char.clone();
 
-        let central_for_disconnects = central.clone();
-        let tp_for_disconnects = target_power.clone();
-        let pcc_for_disconnects = power_control_char.clone();
-
-        // TODO: How on earth do we handle errors here???
-        // Potentially we just keep retrying with exponential back-off?
-        central.on_event(Box::new(move |evt| {
-            if let CentralEvent::DeviceDisconnected(addr) = evt {
-                let p = central_for_disconnects.peripheral(addr).unwrap();
-                if is_kickr(&p) {
-                    thread::sleep(Duration::from_secs(2));
-                    p.connect().unwrap();
-                    unlock(&p).unwrap();
-                    if let Some(power) = *(tp_for_disconnects.lock().unwrap()) {
-                        set_power(&p, &pcc_for_disconnects, power).unwrap();
+                // TODO: How on earth do we handle errors here???
+                // Potentially we just keep retrying with exponential back-off?
+                central.on_event(Box::new(move |evt| {
+                    if let CentralEvent::DeviceDisconnected(addr) = evt {
+                        let p = central_for_disconnects.peripheral(addr).unwrap();
+                        if is_kickr(&p) {
+                            thread::sleep(Duration::from_secs(2));
+                            p.connect().unwrap();
+                            unlock(&p).unwrap();
+                            if let Some(power) = *(tp_for_disconnects.lock().unwrap()) {
+                                set_power(&p, &pcc_for_disconnects, power).unwrap();
+                            }
+                        }
                     }
-                }
-            }
-        }));
+                }));
 
-        Ok(Kickr {
-            peripheral,
-            power_control_char,
-            target_power,
-            central: PhantomData,
-        })
+                Ok(Some(Kickr {
+                    peripheral,
+                    power_control_char,
+                    target_power,
+                    central: PhantomData,
+                }))
+            }
+        }
     }
 
     pub fn set_power(&self, power: u16) -> Result<()> {
