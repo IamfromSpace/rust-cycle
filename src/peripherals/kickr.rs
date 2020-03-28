@@ -100,8 +100,7 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
     }
 }
 
-// TODO: Un-pub this
-pub fn is_kickr(p: &impl Peripheral) -> bool {
+fn is_kickr(p: &impl Peripheral) -> bool {
     p.properties()
         .local_name
         .iter()

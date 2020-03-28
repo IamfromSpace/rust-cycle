@@ -13,9 +13,9 @@ use ble::{
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
-use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
+use btleplug::api::{Central, UUID};
 use btleplug::bluez::manager::Manager;
-use peripherals::{hrm::Hrm, kickr::Kickr};
+use peripherals::{cadence::Cadence, hrm::Hrm, kickr::Kickr};
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
@@ -188,33 +188,11 @@ pub fn main() {
 
         if use_cadence {
             // Connect to Cadence meter and print its raw notifications
-            let cadence_measure = central
-                .peripherals()
-                .into_iter()
-                .find(|p| {
-                    p.properties()
-                        .local_name
-                        .iter()
-                        .any(|name| name.contains("CADENCE"))
-                })
-                .unwrap();
-
-            println!("Found CADENCE");
-
-            cadence_measure.connect().unwrap();
-            println!("Connected to CADENCE");
-
-            cadence_measure.discover_characteristics().unwrap();
-            println!("All characteristics discovered");
-
-            let cadence_measurement = cadence_measure
-                .characteristics()
-                .into_iter()
-                .find(|c| c.uuid == UUID::B16(0x2A5B))
-                .unwrap();
-
-            cadence_measure.subscribe(&cadence_measurement).unwrap();
-            println!("Subscribed to cadence measure");
+            let cadence_measure = or_crash_with_msg(
+                &display_mutex,
+                Cadence::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to Cadence Measure!",
+            );
 
             let mut o_last_cadence_measure: Option<CscMeasurement> = None;
             let mut crank_count = 0;
@@ -241,25 +219,6 @@ pub fn main() {
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
         }
-
-        let central_for_disconnects = central.clone();
-        central.on_event(Box::new(move |evt| {
-            println!("{:?}", evt);
-            match evt {
-                CentralEvent::DeviceDisconnected(addr) => {
-                    println!("PERIPHERAL DISCONNECTED");
-                    let p = central_for_disconnects.peripheral(addr).unwrap();
-                    // Kickr/Hrm are handled on their own
-                    if !peripherals::kickr::is_kickr(&p) && !peripherals::hrm::is_hrm(&p) {
-                        thread::sleep(Duration::from_secs(2));
-                        p.connect().unwrap();
-
-                        println!("PERIPHERAL RECONNECTED");
-                    }
-                }
-                _ => {}
-            }
-        }));
 
         let m_will_shutdown = Arc::new(Mutex::new(false));
         let m_will_shutdown_for_button = m_will_shutdown.clone();
