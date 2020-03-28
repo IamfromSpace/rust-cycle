@@ -150,7 +150,11 @@ pub fn main() {
 
         if use_power {
             // Connect to Kickr and print its raw notifications
-            let kickr = Kickr::new(central.clone()).unwrap().unwrap();
+            let kickr = or_crash_with_msg(
+                &display_mutex,
+                Kickr::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to kickr!",
+            );
 
             let db_kickr = db.clone();
             let display_mutex_kickr = display_mutex.clone();
