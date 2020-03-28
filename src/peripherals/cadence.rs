@@ -4,7 +4,7 @@ use std::{marker::PhantomData, thread, time::Duration};
 
 pub const MEASURE_UUID: UUID = UUID::B16(0x2A5B);
 
-pub struct Cadence<C, P> {
+pub struct Cadence<C: Central<P>, P: Peripheral> {
     peripheral: P,
     central: PhantomData<C>,
 }
@@ -53,6 +53,12 @@ impl<P: Peripheral, C: Central<P> + 'static> Cadence<C, P> {
     // TODO: Make this scoped just to Cadence or just more specific in general?
     pub fn on_notification(&self, cb: NotificationHandler) {
         self.peripheral.on_notification(cb)
+    }
+}
+
+impl<C: Central<P>, P: Peripheral> Drop for Cadence<C, P> {
+    fn drop(&mut self) {
+        self.peripheral.clear_notification_handlers();
     }
 }
 

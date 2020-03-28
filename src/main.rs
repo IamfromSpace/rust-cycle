@@ -126,7 +126,8 @@ pub fn main() {
         );
         lock_and_show(&display_mutex, &"Connecting to Devices.");
 
-        if use_hr {
+        // We need to bind to keep our hrm until the end of the scope
+        let _hrm = if use_hr {
             // Connect to HRM and print its parsed notifications
             let hrm = or_crash_with_msg(
                 &display_mutex,
@@ -143,8 +144,13 @@ pub fn main() {
                 db_hrm.insert(session_key, elapsed, n).unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
-        }
+            Some(hrm)
+        } else {
+            None
+        };
 
+        // TODO: Because the kickr is sent into the workout thread, it's
+        // currently impossible to drop it.
         if use_power {
             // Connect to Kickr and print its raw notifications
             let kickr = or_crash_with_msg(
@@ -187,7 +193,8 @@ pub fn main() {
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
         }
 
-        if use_cadence {
+        // We need to bind to keep our cadence peripheral until the end of the scope
+        let _cadence = if use_cadence {
             // Connect to Cadence meter and print its raw notifications
             let cadence_measure = or_crash_with_msg(
                 &display_mutex,
@@ -215,7 +222,10 @@ pub fn main() {
                 db_cadence_measure.insert(session_key, elapsed, n).unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
-        }
+            Some(cadence_measure)
+        } else {
+            None
+        };
 
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
@@ -243,6 +253,7 @@ pub fn main() {
 
         render_handle.join().unwrap();
         lock_and_show(&display_mutex, &"Goodbye");
+        // TODO: Remove once Kickr can be dropped
         thread::sleep(Duration::from_secs(5));
     }
 }

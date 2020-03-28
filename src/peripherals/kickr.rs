@@ -21,7 +21,7 @@ pub const CONTROL_UUID: UUID = UUID::B128([
     0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A, 0x05, 0xE0, 0x26, 0xA0,
 ]);
 
-pub struct Kickr<C, P> {
+pub struct Kickr<C: Central<P>, P: Peripheral> {
     peripheral: P,
     power_control_char: Characteristic,
     target_power: Arc<Mutex<Option<u16>>>,
@@ -97,6 +97,12 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
     // TODO: Make this scoped just to power or just more specific in general?
     pub fn on_notification(&self, cb: NotificationHandler) {
         self.peripheral.on_notification(cb)
+    }
+}
+
+impl<C: Central<P>, P: Peripheral> Drop for Kickr<C, P> {
+    fn drop(&mut self) {
+        self.peripheral.clear_notification_handlers();
     }
 }
 

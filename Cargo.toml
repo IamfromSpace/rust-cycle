@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 bincode = "1.2"
-btleplug = { git = "https://github.com/IamfromSpace/btleplug.git", rev = "dfed65b303cb28a8", features = ["serde"] }
+btleplug = { git = "https://github.com/IamfromSpace/btleplug.git", rev = "5fdb3ebbef34b849", features = ["serde"] }
 sled = "0.31"
 env_logger = "0.7"
 rppal = "0.11"
