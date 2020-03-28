@@ -177,7 +177,7 @@ pub fn main() {
             }));
 
             // run our workout
-            thread::spawn(move || loop {
+            thread::spawn(move || {
                 run_workout(Instant::now(), &workout, |p| {
                     kickr.set_power(p).unwrap();
                 })
