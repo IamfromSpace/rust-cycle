@@ -19,7 +19,7 @@ use peripherals::{cadence, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr}
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
-use std::io::{stdout, Write};
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -212,7 +212,6 @@ pub fn main() {
                     let mut display = display_mutex_cadence.lock().unwrap();
                     display.update_cadence(Some(rpm as u8));
                     display.update_crank_count(crank_count);
-                    stdout().flush().unwrap();
                 }
                 o_last_cadence_measure = Some(csc_measure);
                 db_cadence_measure.insert(session_key, elapsed, n).unwrap();
