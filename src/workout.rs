@@ -60,30 +60,23 @@ pub fn interval_example() -> Workout {
 // Standard intervals with one exception:  Go extra long on the first to try to
 // hit a "steady state" for each interval as quickly as possible.
 pub fn create_big_start_interval(
-    warmup: (u64, u16),
+    warmup: (Duration, u16),
     count: usize,
-    start: u64,
-    high: (u64, u16),
-    low: (u64, u16),
-    cooldown: (u64, u16),
+    start: Duration,
+    high: (Duration, u16),
+    low: (Duration, u16),
+    tail: Option<u16>,
 ) -> Workout {
     (
         CycleTree::Node((
             1,
             vec![
-                CycleTree::Leaf((Duration::from_secs(warmup.0), warmup.1)),
-                CycleTree::Leaf((Duration::from_secs(start), high.1)),
-                CycleTree::Node((
-                    count,
-                    vec![
-                        CycleTree::Leaf((Duration::from_secs(low.0), low.1)),
-                        CycleTree::Leaf((Duration::from_secs(high.0), high.1)),
-                    ],
-                )),
-                CycleTree::Leaf((Duration::from_secs(cooldown.0), cooldown.1)),
+                CycleTree::Leaf(warmup),
+                CycleTree::Leaf((start, high.1)),
+                CycleTree::Node((count - 1, vec![CycleTree::Leaf(low), CycleTree::Leaf(high)])),
             ],
         )),
-        None,
+        tail,
     )
 }
 
