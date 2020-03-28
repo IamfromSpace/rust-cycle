@@ -1,8 +1,10 @@
 // Port of the Pimomori button shim Python module
 use rppal::i2c::I2c;
 use std::{
+    mem,
     sync::{Arc, Mutex},
     thread,
+    thread::JoinHandle,
     time::{Duration, Instant},
 };
 
@@ -38,9 +40,8 @@ impl ButtonHandler {
 }
 
 pub struct Buttons {
-    // TODO: On drop, end the loop, and join the thread
-    //join_handle: JoinHandle,
-    //running: bool,
+    join_handle: Option<JoinHandle<()>>,
+    running_mutex: Arc<Mutex<bool>>,
     handlers_mutex: Arc<Mutex<Vec<ButtonHandler>>>,
 }
 
@@ -53,6 +54,7 @@ impl Buttons {
         bus.smbus_write_byte(REG_CONFIG, 0b00011111).unwrap();
 
         let mut last_states = 0b00011111;
+        let running_mutex = Arc::new(Mutex::new(true));
         let handlers_mutex: Arc<Mutex<Vec<ButtonHandler>>> = Arc::new(Mutex::new(vec![
             ButtonHandler::new(),
             ButtonHandler::new(),
@@ -64,8 +66,14 @@ impl Buttons {
         // TODO: Handlers should really execute in a separate thread.  This is a bit more
         // challenging to do for FnMut handlers (because they're stateful).
         let handlers_mutex_thread = handlers_mutex.clone();
-        thread::spawn(move || {
+        let running_mutex_thread = running_mutex.clone();
+        let join_handle = Some(thread::spawn(move || {
             loop {
+                {
+                    if !*running_mutex_thread.lock().unwrap() {
+                        break;
+                    }
+                }
                 let states = bus.smbus_read_byte(REG_INPUT).unwrap();
 
                 let mut handlers = handlers_mutex_thread.lock().unwrap();
@@ -121,9 +129,13 @@ impl Buttons {
                 // TODO: I believe this can be arbitrary...
                 thread::sleep(Duration::from_millis(50));
             }
-        });
+        }));
 
-        Buttons { handlers_mutex }
+        Buttons {
+            handlers_mutex,
+            join_handle,
+            running_mutex,
+        }
     }
 
     pub fn on_press(&self, b: Button, f: Box<dyn FnMut() + Send>) {
@@ -161,6 +173,18 @@ impl Buttons {
             handler.release = None;
             handler.hold = None;
             handler.repeat = None;
+        }
+    }
+}
+
+impl Drop for Buttons {
+    fn drop(&mut self) {
+        {
+            let mut running = self.running_mutex.lock().unwrap();
+            *running = false;
+        }
+        if let Some(jh) = mem::replace(&mut self.join_handle, None) {
+            jh.join().unwrap();
         }
     }
 }
