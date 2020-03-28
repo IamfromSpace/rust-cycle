@@ -291,7 +291,7 @@ pub fn main() {
 
         render_handle.join().unwrap();
         lock_and_show(&display_mutex, &"Goodbye");
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(5));
 
         // TODO: This only works _during_ a workout
         println!("Powering off");
