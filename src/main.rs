@@ -15,7 +15,7 @@ use ble::{
 };
 use btleplug::api::{Central, CentralEvent, Peripheral, UUID};
 use btleplug::bluez::manager::Manager;
-use peripherals::kickr::Kickr;
+use peripherals::{hrm::Hrm, kickr::Kickr};
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
@@ -126,32 +126,11 @@ pub fn main() {
 
         if use_hr {
             // Connect to HRM and print its parsed notifications
-            let hrm = central
-                .peripherals()
-                .into_iter()
-                .find(|p| {
-                    p.properties()
-                        .local_name
-                        .iter()
-                        .any(|name| name.contains("Polar"))
-                })
-                .unwrap();
-            println!("Found HRM");
-
-            hrm.connect().unwrap();
-            println!("Connected to HRM");
-
-            hrm.discover_characteristics().unwrap();
-            println!("All characteristics discovered");
-
-            let hr_measurement = hrm
-                .characteristics()
-                .into_iter()
-                .find(|c| c.uuid == UUID::B16(0x2A37))
-                .unwrap();
-
-            hrm.subscribe(&hr_measurement).unwrap();
-            println!("Subscribed to hr measure");
+            let hrm = or_crash_with_msg(
+                &display_mutex,
+                Hrm::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to heart rate monitor!",
+            );
 
             let db_hrm = db.clone();
             let display_mutex_hrm = display_mutex.clone();
@@ -270,8 +249,8 @@ pub fn main() {
                 CentralEvent::DeviceDisconnected(addr) => {
                     println!("PERIPHERAL DISCONNECTED");
                     let p = central_for_disconnects.peripheral(addr).unwrap();
-                    // Kickr is handled on its own
-                    if !peripherals::kickr::is_kickr(&p) {
+                    // Kickr/Hrm are handled on their own
+                    if !peripherals::kickr::is_kickr(&p) && !peripherals::hrm::is_hrm(&p) {
                         thread::sleep(Duration::from_secs(2));
                         p.connect().unwrap();
 
