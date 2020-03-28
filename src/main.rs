@@ -20,7 +20,6 @@ use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
 use std::io::{stdout, Write};
-use std::mem;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -228,17 +227,18 @@ pub fn main() {
             cadence_measure.on_notification(Box::new(move |n| {
                 let elapsed = start.elapsed();
                 let csc_measure = parse_csc_measurement(&n.value);
-                let last_cadence_measure = mem::replace(&mut o_last_cadence_measure, None);
-                if let Some(last_cadence_measure) = last_cadence_measure {
-                    let a = last_cadence_measure.crank.unwrap();
-                    let b = csc_measure.crank.as_ref().unwrap();
-                    if let Some((rpm, new_crank_count)) = checked_rpm_and_new_count(&a, &b) {
-                        crank_count = crank_count + new_crank_count;
-                        let mut display = display_mutex_cadence.lock().unwrap();
-                        display.update_cadence(Some(rpm as u8));
-                        display.update_crank_count(crank_count);
-                        stdout().flush().unwrap();
-                    }
+                let a = o_last_cadence_measure
+                    .as_ref()
+                    .and_then(|x| x.crank.as_ref());
+                let b = csc_measure.crank.as_ref();
+                if let Some((rpm, new_crank_count)) =
+                    lift_a2_option(a, b, checked_rpm_and_new_count).and_then(|x| x)
+                {
+                    crank_count = crank_count + new_crank_count;
+                    let mut display = display_mutex_cadence.lock().unwrap();
+                    display.update_cadence(Some(rpm as u8));
+                    display.update_crank_count(crank_count);
+                    stdout().flush().unwrap();
                 }
                 o_last_cadence_measure = Some(csc_measure);
                 db_cadence_measure.insert(session_key, elapsed, n).unwrap();
@@ -300,6 +300,13 @@ pub fn main() {
             .arg("now")
             .output()
             .unwrap();
+    }
+}
+
+fn lift_a2_option<A, B, C, F: Fn(A, B) -> C>(a: Option<A>, b: Option<B>, f: F) -> Option<C> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(f(a, b)),
+        _ => None,
     }
 }
 
