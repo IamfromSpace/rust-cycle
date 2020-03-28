@@ -49,7 +49,11 @@ pub fn main() {
         let mut buttons = buttons::Buttons::new();
 
         // TODO: Shutdown option
-        let profile = selection(&mut display, &mut buttons, &vec!["Zenia", "Nathan"]);
+        let profile = selection(
+            &mut display,
+            &mut buttons,
+            &vec!["Zenia", "Nathan", "Tests"],
+        );
 
         // TODO: Select Enums
         let workout_name = match profile.as_str() {
@@ -59,6 +63,7 @@ pub fn main() {
                 &mut buttons,
                 &vec!["Fixed", "Ramp", "1st Big Interval"],
             ),
+            "Tests" => selection(&mut display, &mut buttons, &vec!["P/H/70W", "P/H/Ramp"]),
             _ => panic!("Unexpected profile!"),
         };
 
@@ -91,6 +96,8 @@ pub fn main() {
                     Some(160),
                 ),
             ),
+            "P/H/70W" => (true, true, false, single_value(70)),
+            "P/H/Ramp" => (true, true, false, ramp_test(90)),
             _ => panic!("Unexpected workout_name!"),
         };
 
