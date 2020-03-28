@@ -83,16 +83,6 @@ pub fn main() {
         // Create Our Display
         let display_mutex = Arc::new(Mutex::new(display));
 
-        let display_mutex_for_expect = display_mutex.clone();
-        let or_crash_with_msg = move |x, msg| match x {
-            Some(y) => y,
-            None => {
-                lock_and_show(&display_mutex_for_expect, msg);
-                thread::sleep(Duration::from_secs(1));
-                panic!(msg);
-            }
-        };
-
         // This won't fail unless the clock is before epoch, which sounds like a
         // bigger problem
         let session_key = SystemTime::now()
@@ -107,6 +97,7 @@ pub fn main() {
 
         lock_and_show(&display_mutex, &"Setting up Bluetooth");
         let central = or_crash_with_msg(
+            &display_mutex,
             setup_ble_and_discover_devices()
                 // Result to Option
                 // TODO: Loses original error
@@ -395,6 +386,21 @@ fn setup_ble_and_discover_devices(
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
     let mut display = display_mutex.lock().unwrap();
     display.render_msg(msg);
+}
+
+fn or_crash_with_msg<T>(
+    display_mutex: &Arc<Mutex<display::Display>>,
+    x: Option<T>,
+    msg: &'static str,
+) -> T {
+    match x {
+        Some(y) => y,
+        None => {
+            lock_and_show(&display_mutex, msg);
+            thread::sleep(Duration::from_secs(1));
+            panic!(msg)
+        }
+    }
 }
 
 fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
