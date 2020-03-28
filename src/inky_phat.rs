@@ -260,6 +260,12 @@ impl InkyPhat {
     }
 }
 
+impl Drop for InkyPhat {
+    fn drop(&mut self) {
+        self.busy_wait();
+    }
+}
+
 fn pack_bits(v: &Vec<u8>) -> Vec<u8> {
     let packed_len = v.len() / 8;
     let mut v2 = Vec::with_capacity(packed_len);
