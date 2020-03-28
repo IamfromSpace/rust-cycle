@@ -2,7 +2,7 @@ use btleplug::api::{Central, CentralEvent, NotificationHandler, Peripheral, UUID
 use btleplug::Result;
 use std::{marker::PhantomData, thread, time::Duration};
 
-const MEASURE_UUID: UUID = UUID::B16(0x2A37);
+pub const MEASURE_UUID: UUID = UUID::B16(0x2A37);
 
 pub struct Hrm<C, P> {
     peripheral: P,

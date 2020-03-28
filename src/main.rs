@@ -13,9 +13,9 @@ use ble::{
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
-use btleplug::api::{Central, UUID};
+use btleplug::api::Central;
 use btleplug::bluez::manager::Manager;
-use peripherals::{cadence::Cadence, hrm::Hrm, kickr::Kickr};
+use peripherals::{cadence, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr};
 use std::collections::BTreeSet;
 use std::env;
 use std::fs::File;
@@ -156,7 +156,7 @@ pub fn main() {
             let mut o_last_power_reading: Option<CyclingPowerMeasurement> = None;
             let mut acc_torque = 0.0;
             kickr.on_notification(Box::new(move |n| {
-                if n.uuid == UUID::B16(0x2A63) {
+                if n.uuid == kickr::MEASURE_UUID {
                     let mut display = display_mutex_kickr.lock().unwrap();
                     let power_reading = parse_cycling_power_measurement(&n.value);
                     let o_a = o_last_power_reading
@@ -400,17 +400,17 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
             };
 
             record = Some(match uuid {
-                UUID::B16(0x2A37) => {
+                hrm::MEASURE_UUID => {
                     r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     r
                 }
-                UUID::B16(0x2A63) => {
+                kickr::MEASURE_UUID => {
                     let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
                     last_power = p;
                     r.power = Some(p);
                     r
                 }
-                UUID::B16(0x2A5B) => {
+                cadence::MEASURE_UUID => {
                     let csc_measurement = parse_csc_measurement(&v);
                     if let Some(lcm) = last_csc_measurement {
                         let a = lcm.crank.unwrap();
