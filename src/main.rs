@@ -169,9 +169,11 @@ pub fn main() {
                 if n.uuid == UUID::B16(0x2A63) {
                     let mut display = display_mutex_kickr.lock().unwrap();
                     let power_reading = parse_cycling_power_measurement(&n.value);
-                    if let Some(last_power_reading) = o_last_power_reading.as_ref() {
-                        let a = last_power_reading.accumulated_torque.unwrap().1;
-                        let b = power_reading.accumulated_torque.unwrap().1;
+                    let o_a = o_last_power_reading
+                        .as_ref()
+                        .and_then(|x| x.accumulated_torque.map(|y| y.1));
+                    let o_b = power_reading.accumulated_torque.map(|x| x.1);
+                    if let (Some(a), Some(b)) = (o_a, o_b) {
                         acc_torque = acc_torque + b - a + if a > b { 2048.0 } else { 0.0 };
                         display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
                     }
