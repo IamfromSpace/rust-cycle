@@ -23,7 +23,7 @@ use std::io::{stdout, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use workout::{ramp_test, run_workout, single_value};
+use workout::{create_big_start_interval, ramp_test, run_workout, single_value};
 
 pub fn main() {
     env_logger::init();
@@ -52,7 +52,11 @@ pub fn main() {
         // TODO: Select Enums
         let workout_name = match profile.as_str() {
             "Zenia" => selection(&mut display, &mut buttons, &vec!["100W"]),
-            "Nathan" => selection(&mut display, &mut buttons, &vec!["Fixed", "Ramp"]),
+            "Nathan" => selection(
+                &mut display,
+                &mut buttons,
+                &vec!["Fixed", "Ramp", "1st Big Interval"],
+            ),
             _ => panic!("Unexpected profile!"),
         };
 
@@ -72,6 +76,19 @@ pub fn main() {
             "180W" => (true, true, true, single_value(180)),
             "185W" => (true, true, true, single_value(185)),
             "Ramp" => (true, true, true, ramp_test(120)),
+            "1st Big Interval" => (
+                true,
+                true,
+                true,
+                create_big_start_interval(
+                    (Duration::from_secs(300), 140),
+                    14,
+                    Duration::from_secs(150),
+                    (Duration::from_secs(60), 320),
+                    (Duration::from_secs(90), 120),
+                    Some(160),
+                ),
+            ),
             _ => panic!("Unexpected workout_name!"),
         };
 
