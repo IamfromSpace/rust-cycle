@@ -6,6 +6,7 @@ mod display;
 mod fit;
 mod inky_phat;
 mod peripherals;
+mod utils;
 mod workout;
 
 use ble::{
@@ -201,13 +202,10 @@ pub fn main() {
             cadence_measure.on_notification(Box::new(move |n| {
                 let elapsed = start.elapsed();
                 let csc_measure = parse_csc_measurement(&n.value);
-                let a = o_last_cadence_measure
+                let r = o_last_cadence_measure
                     .as_ref()
-                    .and_then(|x| x.crank.as_ref());
-                let b = csc_measure.crank.as_ref();
-                if let Some((rpm, new_crank_count)) =
-                    lift_a2_option(a, b, checked_rpm_and_new_count).and_then(|x| x)
-                {
+                    .and_then(|a| checked_rpm_and_new_count(a, &csc_measure));
+                if let Some((rpm, new_crank_count)) = r {
                     crank_count = crank_count + new_crank_count;
                     let mut display = display_mutex_cadence.lock().unwrap();
                     display.update_cadence(Some(rpm as u8));
@@ -254,13 +252,6 @@ pub fn main() {
             .arg("now")
             .output()
             .unwrap();
-    }
-}
-
-fn lift_a2_option<A, B, C, F: Fn(A, B) -> C>(a: Option<A>, b: Option<B>, f: F) -> Option<C> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(f(a, b)),
-        _ => None,
     }
 }
 
@@ -411,12 +402,11 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
                 }
                 cadence::MEASURE_UUID => {
                     let csc_measurement = parse_csc_measurement(&v);
-                    if let Some(lcm) = last_csc_measurement {
-                        let a = lcm.crank.unwrap();
-                        let b = csc_measurement.crank.clone().unwrap();
-                        if let Some((rpm, _)) = checked_rpm_and_new_count(&a, &b) {
-                            r.cadence = Some(rpm as u8);
-                        }
+                    let o_rpm = last_csc_measurement
+                        .and_then(|a| checked_rpm_and_new_count(&a, &csc_measurement))
+                        .map(|x| x.1);
+                    if let Some(rpm) = o_rpm {
+                        r.cadence = Some(rpm as u8);
                     }
                     last_csc_measurement = Some(csc_measurement);
                     r

@@ -54,8 +54,17 @@ pub fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
     }
 }
 
+pub fn checked_rpm_and_new_count(a: &CscMeasurement, b: &CscMeasurement) -> Option<(f64, u32)> {
+    let a = a.crank.as_ref();
+    let b = b.crank.as_ref();
+    crate::utils::lift_a2_option(a, b, checked_rpm_and_new_count_rev_data).and_then(|x| x)
+}
+
 // TODO: How to better handle overflow when managing raw/decoded data
-pub fn checked_rpm_and_new_count(a: &RevolutionData, b: &RevolutionData) -> Option<(f64, u32)> {
+pub fn checked_rpm_and_new_count_rev_data(
+    a: &RevolutionData,
+    b: &RevolutionData,
+) -> Option<(f64, u32)> {
     if a.last_revolution_event_time == b.last_revolution_event_time {
         None
     } else {
