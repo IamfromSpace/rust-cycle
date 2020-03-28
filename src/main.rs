@@ -48,6 +48,7 @@ pub fn main() {
         // Create our Buttons
         let mut buttons = buttons::Buttons::new();
 
+        // TODO: Shutdown option
         let profile = selection(&mut display, &mut buttons, &vec!["Zenia", "Nathan"]);
 
         // TODO: Select Enums
@@ -216,23 +217,23 @@ pub fn main() {
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
         }
 
-        let m_will_shutdown = Arc::new(Mutex::new(false));
-        let m_will_shutdown_for_button = m_will_shutdown.clone();
+        let m_will_exit = Arc::new(Mutex::new(false));
+        let m_will_exit_for_button = m_will_exit.clone();
         buttons.on_hold(
             buttons::Button::ButtonA,
             Duration::from_secs(5),
             Box::new(move || {
-                let mut will_shutdown = m_will_shutdown_for_button.lock().unwrap();
-                *will_shutdown = true;
+                let mut will_exit = m_will_exit_for_button.lock().unwrap();
+                *will_exit = true;
             }),
         );
 
         // Update it every second
         let display_mutex_for_render = display_mutex.clone();
-        let m_will_shutdown_for_render = m_will_shutdown.clone();
+        let m_will_exit_for_render = m_will_exit.clone();
         let render_handle = thread::spawn(move || loop {
             {
-                if *m_will_shutdown_for_render.lock().unwrap() {
+                if *m_will_exit_for_render.lock().unwrap() {
                     break;
                 }
             };
@@ -243,14 +244,6 @@ pub fn main() {
         render_handle.join().unwrap();
         lock_and_show(&display_mutex, &"Goodbye");
         thread::sleep(Duration::from_secs(5));
-
-        // TODO: This only works _during_ a workout
-        println!("Powering off");
-        std::process::Command::new("sudo")
-            .arg("shutdown")
-            .arg("now")
-            .output()
-            .unwrap();
     }
 }
 
