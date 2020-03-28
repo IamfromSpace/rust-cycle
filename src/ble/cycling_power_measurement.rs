@@ -23,6 +23,16 @@ pub struct CyclingPowerMeasurement {
     // TODO: There are other fields, but they're all after these or in the flags
 }
 
+impl CyclingPowerMeasurement {
+    pub fn new_accumulated_torque(&self, next: &Self) -> Option<f64> {
+        crate::utils::lift_a2_option(
+            self.accumulated_torque.map(|y| y.1),
+            next.accumulated_torque.map(|x| x.1),
+            |a, b| b - a + if a > b { 2048.0 } else { 0.0 },
+        )
+    }
+}
+
 // Notably, this function always assumes a valid input
 pub fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasurement {
     let has_pedal_power_balance = data[0] & 1 == 1;

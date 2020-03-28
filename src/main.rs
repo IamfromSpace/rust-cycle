@@ -160,12 +160,11 @@ pub fn main() {
                 if n.uuid == kickr::MEASURE_UUID {
                     let mut display = display_mutex_kickr.lock().unwrap();
                     let power_reading = parse_cycling_power_measurement(&n.value);
-                    let o_a = o_last_power_reading
+                    let o_new_acc_torque = o_last_power_reading
                         .as_ref()
-                        .and_then(|x| x.accumulated_torque.map(|y| y.1));
-                    let o_b = power_reading.accumulated_torque.map(|x| x.1);
-                    if let (Some(a), Some(b)) = (o_a, o_b) {
-                        acc_torque = acc_torque + b - a + if a > b { 2048.0 } else { 0.0 };
+                        .and_then(|x| x.new_accumulated_torque(&power_reading));
+                    if let Some(new_acc_torque) = o_new_acc_torque {
+                        acc_torque = acc_torque + new_acc_torque;
                         display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
                     }
                     display.update_power(Some(power_reading.instantaneous_power));
