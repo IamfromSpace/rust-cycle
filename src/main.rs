@@ -26,6 +26,20 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use workout::{create_big_start_interval, ramp_test, single_value};
 
+#[derive(Clone)]
+enum OrExit<T> {
+    NotExit(T),
+    Exit,
+}
+impl<T: std::fmt::Display> std::fmt::Display for OrExit<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            OrExit::NotExit(t) => write!(f, "{}", t),
+            OrExit::Exit => write!(f, "Exit"),
+        }
+    }
+}
+
 pub fn main() {
     env_logger::init();
 
@@ -48,28 +62,53 @@ pub fn main() {
         // Create our Buttons
         let mut buttons = buttons::Buttons::new();
 
-        // TODO: Shutdown option
         // TODO: Select Enums
+        use OrExit::{Exit, NotExit};
         use SelectionTree::{Leaf, Node};
         let workout_name = selection_tree(
             &mut display,
             &mut buttons,
             vec![
-                Node(("Zenia".to_string(), vec![Leaf("100W")])),
+                Node(("Zenia".to_string(), vec![Leaf(NotExit("100W"))])),
                 Node((
                     "Nathan".to_string(),
                     vec![
                         Node((
                             "Fixed".to_string(),
-                            vec![Leaf("170W"), Leaf("175W"), Leaf("180W"), Leaf("185W")],
+                            vec![
+                                Leaf(NotExit("170W")),
+                                Leaf(NotExit("175W")),
+                                Leaf(NotExit("180W")),
+                                Leaf(NotExit("185W")),
+                            ],
                         )),
-                        Leaf("Ramp"),
-                        Leaf("1st Big Interval"),
+                        Leaf(NotExit("Ramp")),
+                        Leaf(NotExit("1st Big Interval")),
                     ],
                 )),
-                Node(("Tests".to_string(), vec![Leaf("P/H/70W"), Leaf("P/H/Ramp")])),
+                Node((
+                    "Tests".to_string(),
+                    vec![Leaf(NotExit("P/H/70W")), Leaf(NotExit("P/H/Ramp"))],
+                )),
+                Leaf(Exit),
             ],
         );
+
+        let workout_name = match workout_name {
+            Exit => {
+                display.render_msg("Goodbye");
+                // TODO: Set this up in a way that doesn't require manual drops
+                drop(display);
+                drop(buttons);
+                std::process::Command::new("sudo")
+                    .arg("shutdown")
+                    .arg("now")
+                    .output()
+                    .unwrap();
+                return;
+            }
+            NotExit(x) => x,
+        };
 
         let (use_hr, use_power, use_cadence, workout) = match workout_name {
             "100W" => (false, true, false, single_value(100)),
