@@ -49,32 +49,27 @@ pub fn main() {
         let mut buttons = buttons::Buttons::new();
 
         // TODO: Shutdown option
-        let profile = selection(
+        // TODO: Select Enums
+        use SelectionTree::{Leaf, Node};
+        let workout_name = selection_tree(
             &mut display,
             &mut buttons,
-            &vec!["Zenia", "Nathan", "Tests"],
+            vec![
+                Node(("Zenia".to_string(), vec![Leaf("100W")])),
+                Node((
+                    "Nathan".to_string(),
+                    vec![
+                        Node((
+                            "Fixed".to_string(),
+                            vec![Leaf("170W"), Leaf("175W"), Leaf("180W"), Leaf("185W")],
+                        )),
+                        Leaf("Ramp"),
+                        Leaf("1st Big Interval"),
+                    ],
+                )),
+                Node(("Tests".to_string(), vec![Leaf("P/H/70W"), Leaf("P/H/Ramp")])),
+            ],
         );
-
-        // TODO: Select Enums
-        let workout_name = match profile {
-            "Zenia" => selection(&mut display, &mut buttons, &vec!["100W"]),
-            "Nathan" => selection(
-                &mut display,
-                &mut buttons,
-                &vec!["Fixed", "Ramp", "1st Big Interval"],
-            ),
-            "Tests" => selection(&mut display, &mut buttons, &vec!["P/H/70W", "P/H/Ramp"]),
-            _ => panic!("Unexpected profile!"),
-        };
-
-        let workout_name = match workout_name {
-            "Fixed" => selection(
-                &mut display,
-                &mut buttons,
-                &vec!["170W", "175W", "180W", "185W"],
-            ),
-            _ => workout_name,
-        };
 
         let (use_hr, use_power, use_cadence, workout) = match workout_name {
             "100W" => (false, true, false, single_value(100)),
@@ -115,10 +110,7 @@ pub fn main() {
             .unwrap()
             .as_secs();
 
-        lock_and_show(
-            &display_mutex,
-            &format!("Welcome, {}, running {}", profile, workout_name),
-        );
+        lock_and_show(&display_mutex, &format!("Running {}", workout_name));
 
         lock_and_show(&display_mutex, &"Setting up Bluetooth");
         let central = or_crash_with_msg(
