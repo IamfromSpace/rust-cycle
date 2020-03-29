@@ -274,6 +274,39 @@ pub fn main() {
     }
 }
 
+#[derive(Clone)]
+enum SelectionTree<T> {
+    Leaf(T),
+    Node((String, Vec<SelectionTree<T>>)),
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for SelectionTree<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SelectionTree::Leaf(t) => write!(f, "{}", t),
+            SelectionTree::Node((label, _)) => write!(f, "{}", label),
+        }
+    }
+}
+
+fn selection_tree<O: std::fmt::Display + Clone>(
+    mut display: &mut display::Display,
+    mut buttons: &mut buttons::Buttons,
+    tree: Vec<SelectionTree<O>>,
+) -> O {
+    let mut t = tree;
+    loop {
+        match selection(&mut display, &mut buttons, &t) {
+            SelectionTree::Node((_, selected_tree)) => {
+                t = selected_tree;
+            }
+            SelectionTree::Leaf(x) => {
+                break x;
+            }
+        }
+    }
+}
+
 fn selection<O: std::fmt::Display + Clone>(
     display: &mut display::Display,
     buttons: &mut buttons::Buttons,
