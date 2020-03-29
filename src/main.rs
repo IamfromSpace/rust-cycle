@@ -56,7 +56,7 @@ pub fn main() {
         );
 
         // TODO: Select Enums
-        let workout_name = match profile.as_str() {
+        let workout_name = match profile {
             "Zenia" => selection(&mut display, &mut buttons, &vec!["100W"]),
             "Nathan" => selection(
                 &mut display,
@@ -67,7 +67,7 @@ pub fn main() {
             _ => panic!("Unexpected profile!"),
         };
 
-        let workout_name = match workout_name.as_str() {
+        let workout_name = match workout_name {
             "Fixed" => selection(
                 &mut display,
                 &mut buttons,
@@ -76,7 +76,7 @@ pub fn main() {
             _ => workout_name,
         };
 
-        let (use_hr, use_power, use_cadence, workout) = match workout_name.as_str() {
+        let (use_hr, use_power, use_cadence, workout) = match workout_name {
             "100W" => (false, true, false, single_value(100)),
             "170W" => (true, true, true, single_value(170)),
             "175W" => (true, true, true, single_value(175)),
@@ -274,12 +274,12 @@ pub fn main() {
     }
 }
 
-fn selection(
+fn selection<O: std::fmt::Display + Clone>(
     display: &mut display::Display,
     buttons: &mut buttons::Buttons,
-    x: &Vec<&str>,
-) -> String {
-    if x.len() < 1 || x.len() > 4 {
+    options: &Vec<O>,
+) -> O {
+    if options.len() < 1 || options.len() > 4 {
         panic!("Unsupported selection length!");
     }
 
@@ -292,26 +292,26 @@ fn selection(
         Button::ButtonE,
     ];
 
-    for i in 0..x.len() {
+    for i in 0..options.len() {
         let choice_button = choice.clone();
-        let x_str = x.get(i).map(|x| x.to_string()).unwrap();
         buttons.on_press(
             bs[i],
             Box::new(move || {
                 let mut choice = choice_button.lock().unwrap();
                 if let None = *choice {
-                    *choice = Some(x_str.clone());
+                    *choice = Some(i);
                 }
             }),
         );
     }
 
-    display.render_options(&x);
+    let strings: Vec<String> = options.iter().map(|x| format!("{}", x)).collect();
+    display.render_options(&strings.iter().map(|x| &**x).collect());
 
-    let result = loop {
+    let index = loop {
         let or = choice.lock().unwrap();
-        if let Some(r) = or.as_ref() {
-            break r.clone();
+        if let Some(r) = *or {
+            break r;
         }
         thread::sleep(Duration::from_millis(15));
     };
@@ -320,7 +320,7 @@ fn selection(
         buttons.clear_handlers(b);
     }
 
-    result
+    options[index].clone()
 }
 
 // Creates a manager, adapter, and connects it to create a central.  That
