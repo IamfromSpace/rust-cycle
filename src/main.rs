@@ -487,7 +487,7 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
                     let csc_measurement = parse_csc_measurement(&v);
                     let o_rpm = last_csc_measurement
                         .and_then(|a| checked_rpm_and_new_count(&a, &csc_measurement))
-                        .map(|x| x.1);
+                        .map(|x| x.0);
                     if let Some(rpm) = o_rpm {
                         r.cadence = Some(rpm as u8);
                     }
