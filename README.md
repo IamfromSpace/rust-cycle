@@ -35,6 +35,24 @@ This has to be done on every new build!
 sudo setcap 'cap_net_raw,cap_net_admin+eip' ${BINARY}
 ```
 
+### Pi Config
+
+#### Enable SPI
+
+SPI is used to interface with the InkyPhat display.
+
+In `/boot/config.txt` add (or uncomment) `dtparam=spi=on`.
+
+Reboot to enable this change.
+
+#### Enable I2C
+
+I2C is used to interface with the button shim.
+
+In `/boot/config.txt` add (or uncomment) `dtparam=i2c_arm=on`.
+
+Reboot to enable this change.
+
 #### Run on Startup
 
 From the host, fill in the `misc/rust-cycle.service` file and send it to the target.
