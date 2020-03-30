@@ -71,13 +71,14 @@ pub fn checked_rpm_and_new_count_rev_data(
         let duration = if b.last_revolution_event_time > a.last_revolution_event_time {
             b.last_revolution_event_time - a.last_revolution_event_time
         } else {
-            0b100000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
+            0b1000000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
         };
 
+        // This takes a _long_ time to overflow, but it can happen
         let total_revolutions = if b.revolution_count > a.revolution_count {
             b.revolution_count - a.revolution_count
         } else {
-            0b100000 + b.revolution_count - a.revolution_count
+            0x10000 + b.revolution_count - a.revolution_count
         };
 
         Some((
@@ -147,5 +148,29 @@ mod tests {
             },
             parse_csc_measurement(&vec!(0))
         );
+    }
+
+    use super::checked_rpm_and_new_count;
+    #[test]
+    fn overflow_works() {
+        assert_eq!(
+            Some((95.10835913312694, 2)),
+            checked_rpm_and_new_count(
+                &CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 4434,
+                        last_revolution_event_time: 62.9365234375
+                    })
+                },
+                &CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 4436,
+                        last_revolution_event_time: 0.1982421875
+                    })
+                }
+            )
+        )
     }
 }
