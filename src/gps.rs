@@ -1,17 +1,25 @@
 use rppal::uart::{Parity, Result, Uart};
-use std::{mem, sync::Arc, thread, thread::JoinHandle};
-use yanp::parse_nmea_sentence;
+use std::{
+    mem,
+    sync::{Arc, Mutex},
+    thread,
+    thread::JoinHandle,
+};
+use yanp::{parse::SentenceData, parse_nmea_sentence};
 
-#[derive(Debug)]
 pub struct Gps {
     running: Option<Arc<()>>,
     join_handle: Option<JoinHandle<()>>,
+    handler: Arc<Mutex<Option<Box<dyn FnMut(ParseResult) + Send>>>>,
 }
 
 impl Gps {
     pub fn new() -> Result<Gps> {
         let mut uart = Uart::new(9600, Parity::None, 8, 1)?;
         uart.send_start()?;
+        let handler: Arc<Mutex<Option<Box<dyn FnMut(ParseResult) + Send>>>> =
+            Arc::new(Mutex::new(None));
+
         let running_for_thread = Arc::new(());
         let running = Some(running_for_thread.clone());
         let join_handle = Some(thread::spawn(move || {
@@ -70,7 +78,13 @@ impl Gps {
         Ok(Gps {
             running,
             join_handle,
+            handler,
         })
+    }
+
+    pub fn on_update(&mut self, f: Box<dyn FnMut(ParseResult) + Send>) -> () {
+        let mut handler = self.handler.lock().unwrap();
+        *handler = Some(f);
     }
 }
 
