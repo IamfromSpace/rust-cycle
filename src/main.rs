@@ -4,6 +4,7 @@ mod char_db;
 mod cycle_tree;
 mod display;
 mod fit;
+mod gps;
 mod inky_phat;
 mod peripherals;
 mod utils;

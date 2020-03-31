@@ -53,6 +53,17 @@ In `/boot/config.txt` add (or uncomment) `dtparam=i2c_arm=on`.
 
 Reboot to enable this change.
 
+#### Enable GPS
+
+Our GPS module uses UART to send NMEA sentences.
+Because we will be using Bluetooth, which uses the primary serial device, we need to use the miniUart for serial communication.
+
+In `/boot/cmdline.txt` remove `console=serial0,115200`.
+
+In `/boot/config.txt` add `enable_uart=1`.
+
+Reboot to enable these changes.
+
 #### Run on Startup
 
 From the host, fill in the `misc/rust-cycle.service` file and send it to the target.
