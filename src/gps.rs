@@ -29,6 +29,8 @@ impl Gps {
             loop {
                 let byte_count = uart.read(&mut buffer[..]).unwrap();
 
+                // TODO: Put handler in a separate thread connected by a queue
+                // so that the "user" code does not block the read/parse thread
                 for result in parser.parse_from_bytes(&buffer[..byte_count]) {
                     if let Ok(r) = result {
                         if let Some(handler) = handler_for_thread.lock().unwrap().as_mut() {
