@@ -258,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn to_file_for_two_records() {
+    fn to_file_for_two_records_with_reused_definition() {
         assert_eq!(
             vec!(
                 0x0c, 0x20, 0xeb, 0x07, 0x24, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40, 0x00,
@@ -284,6 +284,41 @@ mod tests {
                     latitude: None,
                     longitude: None,
                     altitude: None,
+                }
+            )),
+        );
+    }
+
+    #[test]
+    fn to_file_for_two_records_with_separate_definitions() {
+        assert_eq!(
+            vec!(
+                0x0c, 0x20, 0xeb, 0x07, 0x3c, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40, 0x00,
+                0x00, 0x14, 0x00, 0x04, 0xfd, 0x04, 0x86, 0x07, 0x02, 0x84, 0x03, 0x01, 0x02, 0x04,
+                0x01, 0x02, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0xb4, 0x00, 0x78, 0x5a, //
+                0x40, 0x00, 0x00, 0x14, 0x00, 0x04, 253, 0x04, 0x86, 0x00, 0x04, 0x85, 0x01, 0x04,
+                0x85, 0x02, 0x02, 0x84, 0x00, 0xe9, 0x98, 0xc9, 0x38, 0x33, 0xab, 0x58, 0x20, 0xd3,
+                0xc7, 0xe7, 0xa8, 0x5d, 0x0b, //
+                176, 0x0b
+            ),
+            to_file(&vec!(
+                FitRecord {
+                    seconds_since_unix_epoch: 1583801576,
+                    power: Some(180),
+                    heart_rate: Some(120),
+                    cadence: Some(90),
+                    latitude: None,
+                    longitude: None,
+                    altitude: None,
+                },
+                FitRecord {
+                    seconds_since_unix_epoch: 1583801577,
+                    power: None,
+                    heart_rate: None,
+                    cadence: None,
+                    latitude: Some(45.48707197420299),
+                    longitude: Some(-122.4767913389951),
+                    altitude: Some(81.79999999999995)
                 }
             )),
         );
