@@ -453,6 +453,9 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
         power: None,
         heart_rate: None,
         cadence: None,
+        latitude: None,
+        longitude: None,
+        altitude: None,
     };
 
     for x in db.get_session_entries(session_key) {

@@ -1,7 +1,7 @@
 // This is just a quick port of the original JS I had written--there's room for
 // improvement
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FitRecord {
     // We use the same bitdepth, but not the same epoch
     pub seconds_since_unix_epoch: u32,
@@ -11,6 +11,12 @@ pub struct FitRecord {
     pub heart_rate: Option<u8>,
     // RPM
     pub cadence: Option<u8>,
+    // GPS Lat
+    pub latitude: Option<f64>,
+    // GPS Lon
+    pub longitude: Option<f64>,
+    // GPS Alitude
+    pub altitude: Option<f32>,
 }
 
 fn make_header(length: usize) -> Vec<u8> {
@@ -46,6 +52,21 @@ fn record_to_bytes(record: &FitRecord) -> Vec<u8> {
         (ts >> 24) as u8 & 0xff,
     ];
 
+    if let Some(l) = record.latitude {
+        let x = i32::to_le_bytes((l * ((1 << 29) as f64) / 45.0) as i32);
+        bytes.extend(&x);
+    }
+
+    if let Some(l) = record.longitude {
+        let x = i32::to_le_bytes((l * ((1 << 29) as f64) / 45.0) as i32);
+        bytes.extend(&x);
+    }
+
+    if let Some(a) = record.altitude {
+        let x = u16::to_le_bytes((5.0 * (a + 500.0)) as u16);
+        bytes.extend(&x);
+    }
+
     if let Some(p) = record.power {
         bytes.push(p as u8 & 0xff);
         bytes.push((p >> 8) as u8 & 0xff);
@@ -64,6 +85,9 @@ fn record_to_bytes(record: &FitRecord) -> Vec<u8> {
 
 fn record_def(record: &FitRecord) -> Vec<u8> {
     let field_count = 1
+        + if let Some(_) = record.latitude { 1 } else { 0 }
+        + if let Some(_) = record.longitude { 1 } else { 0 }
+        + if let Some(_) = record.altitude { 1 } else { 0 }
         + if let Some(_) = record.power { 1 } else { 0 }
         + if let Some(_) = record.heart_rate {
             1
@@ -90,6 +114,18 @@ fn record_def(record: &FitRecord) -> Vec<u8> {
         0x86,
     ];
 
+    let lat_def = vec![
+        // Latitude (field definition number, byte count, default type (i32))
+        0, 4, 0x85,
+    ];
+    let lon_def = vec![
+        // Longitude (field definition number, byte count, default type (i32))
+        1, 4, 0x85,
+    ];
+    let alt_def = vec![
+        // Altitude (field definition number, byte count, default type (u16))
+        2, 2, 0x84,
+    ];
     let power_def = vec![
         // Power (field definition number, byte count, default type (u16))
         7, 2, 0x84,
@@ -102,6 +138,18 @@ fn record_def(record: &FitRecord) -> Vec<u8> {
         // Cadence (field definition number, byte count, default type (u8))
         4, 1, 2,
     ];
+
+    if let Some(_) = record.latitude {
+        bytes.extend(lat_def);
+    };
+
+    if let Some(_) = record.longitude {
+        bytes.extend(lon_def);
+    };
+
+    if let Some(_) = record.altitude {
+        bytes.extend(alt_def);
+    };
 
     if let Some(_) = record.power {
         bytes.extend(power_def);
@@ -201,7 +249,10 @@ mod tests {
                 seconds_since_unix_epoch: 1583801576,
                 power: Some(180),
                 heart_rate: Some(120),
-                cadence: Some(90)
+                cadence: Some(90),
+                latitude: None,
+                longitude: None,
+                altitude: None,
             })),
         );
     }
@@ -220,13 +271,19 @@ mod tests {
                     seconds_since_unix_epoch: 1583801576,
                     power: Some(180),
                     heart_rate: Some(120),
-                    cadence: Some(90)
+                    cadence: Some(90),
+                    latitude: None,
+                    longitude: None,
+                    altitude: None,
                 },
                 FitRecord {
                     seconds_since_unix_epoch: 1583801577,
                     power: Some(181),
                     heart_rate: Some(121),
-                    cadence: Some(91)
+                    cadence: Some(91),
+                    latitude: None,
+                    longitude: None,
+                    altitude: None,
                 }
             )),
         );
@@ -244,7 +301,10 @@ mod tests {
                 seconds_since_unix_epoch: 1583801576,
                 power: None,
                 heart_rate: Some(120),
-                cadence: Some(90)
+                cadence: Some(90),
+                latitude: None,
+                longitude: None,
+                altitude: None,
             })),
         );
     }
@@ -261,7 +321,10 @@ mod tests {
                 seconds_since_unix_epoch: 1583801576,
                 power: Some(180),
                 heart_rate: None,
-                cadence: Some(90)
+                cadence: Some(90),
+                latitude: None,
+                longitude: None,
+                altitude: None,
             })),
         );
     }
@@ -278,7 +341,53 @@ mod tests {
                 seconds_since_unix_epoch: 1583801576,
                 power: Some(180),
                 heart_rate: Some(120),
-                cadence: None
+                cadence: None,
+                latitude: None,
+                longitude: None,
+                altitude: None,
+            })),
+        );
+    }
+
+    #[test]
+    fn to_file_for_lat_lon_alt() {
+        assert_eq!(
+            vec!(
+                0x0c, 0x20, 0xeb, 0x07, 0x21, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40, 0x00,
+                0x00, 0x14, 0x00, 0x04, 253, 0x04, 0x86, 0x00, 0x04, 0x85, 0x01, 0x04, 0x85, 0x02,
+                0x02, 0x84, 0x00, 0xe8, 0x98, 0xc9, 0x38, 0x33, 0xab, 0x58, 0x20, 0xd3, 0xc7, 0xe7,
+                0xa8, 0x5d, 0x0b, 0x4d, 0xb6
+            ),
+            to_file(&vec!(FitRecord {
+                seconds_since_unix_epoch: 1583801576,
+                power: None,
+                heart_rate: None,
+                cadence: None,
+                latitude: Some(45.48707197420299),
+                longitude: Some(-122.4767913389951),
+                altitude: Some(81.79999999999995)
+            })),
+        );
+    }
+
+    #[test]
+    fn to_file_for_lat_lon_alt_cadence_hr_power() {
+        assert_eq!(
+            vec!(
+                0x0c, 0x20, 0xeb, 0x07, 0x2e, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40, 0x00,
+                0x00, 0x14, 0x00, 0x07, 253, 0x04, 0x86, 0x00, 0x04, 0x85, 0x01, 0x04, 0x85, 0x02,
+                0x02, 0x84, 0x07, 0x02, 0x84, 0x03, 0x01, 0x02, 0x04, 0x01, 0x02, 0, 0xe8, 0x98,
+                0xc9, 0x38, 0x33, 0xab, 0x58, 0x20, 0xd3, 0xc7, 0xe7, 0xa8, 0x5d, 0x0b, 0xb5, 0x00,
+                0x79, 0x5b, 0xe9, 0x1b
+            ),
+            to_file(&vec!(FitRecord {
+                seconds_since_unix_epoch: 1583801576,
+                power: Some(181),
+                heart_rate: Some(121),
+                cadence: Some(91),
+                latitude: Some(45.48707197420299),
+                longitude: Some(-122.4767913389951),
+                altitude: Some(81.79999999999995)
             })),
         );
     }
