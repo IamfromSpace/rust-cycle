@@ -1,3 +1,4 @@
+use nmea0183::{ParseResult, Parser};
 use rppal::uart::{Parity, Result, Uart};
 use std::{
     mem,
@@ -5,7 +6,6 @@ use std::{
     thread,
     thread::JoinHandle,
 };
-use yanp::{parse::SentenceData, parse_nmea_sentence};
 
 pub struct Gps {
     running: Option<Arc<()>>,
@@ -20,49 +20,21 @@ impl Gps {
         let handler: Arc<Mutex<Option<Box<dyn FnMut(ParseResult) + Send>>>> =
             Arc::new(Mutex::new(None));
 
+        let handler_for_thread = handler.clone();
         let running_for_thread = Arc::new(());
         let running = Some(running_for_thread.clone());
         let join_handle = Some(thread::spawn(move || {
-            // Our NMEA parser is not live and expects entire sentences.  As
-            // such, we need to do the first pass parse to chunk into sentences.
-            // We want to be efficient with our buffer, so we keep a pointer to
-            // the last write position, then when we find a sentence we parse it
-            // in place, then rotate left by the sentence length to put the next
-            // sentence at the beginning of the buffer.
-
-            // The maximum length of a NMEA sentence is 82 bytes so that's all
-            // we need in our buffer.
+            let mut parser = Parser::new();
             let mut buffer = vec![0; 82];
-            // The pointer to the end of the buffer
-            let mut end = 0;
             loop {
-                // Read in as many bytes as we can
-                let byte_count = uart.read(&mut buffer[end..]).unwrap();
-                // Update our end pointer to include our new bytes
-                end = end + byte_count;
+                let byte_count = uart.read(&mut buffer[..]).unwrap();
 
-                // Try to find the end of our sentence in our new bytes
-                let mut sentence_end = None;
-                for i in (end - byte_count - 1)..end {
-                    if buffer[i] == 13 && buffer[i + 1] == 10 {
-                        sentence_end = Some(i + 2);
-                        break;
+                for result in parser.parse_from_bytes(&buffer[..byte_count]) {
+                    if let Ok(r) = result {
+                        if let Some(handler) = handler_for_thread.lock().unwrap().as_mut() {
+                            handler(r);
+                        }
                     }
-                }
-
-                // If we found a sentence, try to parse it
-                let parsed = sentence_end.and_then(|i| parse_nmea_sentence(&buffer[0..i]).ok());
-
-                // TODO: Invoke callback/push to handler thread
-                if let Some(p) = parsed {
-                    println!("{:?}", p);
-                }
-
-                // If we found a sentence align the buffer so the next sentece
-                // is at index 0, and update our pointer accordingly
-                if let Some(i) = sentence_end {
-                    buffer[..].rotate_left(i);
-                    end = end - i;
                 }
 
                 // If the thread is  the last owner of the Arc, then there are
