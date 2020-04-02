@@ -1,12 +1,12 @@
 mod ble;
 mod buttons;
-mod char_db;
 mod cycle_tree;
 mod display;
 mod fit;
 mod gps;
 mod inky_phat;
 mod peripherals;
+mod telemetry_db;
 mod utils;
 mod workout;
 
@@ -47,7 +47,7 @@ pub fn main() {
     let args: BTreeSet<String> = env::args().collect();
     let is_output_mode = args.is_empty() || args.contains("--output");
 
-    let db = char_db::open_default().unwrap();
+    let db = telemetry_db::open_default().unwrap();
 
     if is_output_mode {
         // TODO: Should accept a cli flag for output mode vs session mode
@@ -184,7 +184,7 @@ pub fn main() {
                     .insert(
                         session_key,
                         elapsed,
-                        char_db::Notification::Ble((n.uuid, n.value)),
+                        telemetry_db::Notification::Ble((n.uuid, n.value)),
                     )
                     .unwrap();
             }));
@@ -224,7 +224,7 @@ pub fn main() {
                         .insert(
                             session_key,
                             elapsed,
-                            char_db::Notification::Ble((n.uuid, n.value)),
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
                         )
                         .unwrap();
                 } else {
@@ -282,7 +282,7 @@ pub fn main() {
                     .insert(
                         session_key,
                         elapsed,
-                        char_db::Notification::Ble((n.uuid, n.value)),
+                        telemetry_db::Notification::Ble((n.uuid, n.value)),
                     )
                     .unwrap();
             }));
@@ -461,7 +461,7 @@ fn or_crash_with_msg<T>(
     }
 }
 
-fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
+fn db_session_to_fit(db: &telemetry_db::CharDb, session_key: u64) -> Vec<u8> {
     let mut last_power: u16 = 0;
     let mut last_csc_measurement: Option<CscMeasurement> = None;
     let mut record: Option<fit::FitRecord> = None;
@@ -495,17 +495,17 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
             };
 
             record = Some(match value {
-                char_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
+                telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                     r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     r
                 }
-                char_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
+                telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
                     let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
                     last_power = p;
                     r.power = Some(p);
                     r
                 }
-                char_db::Notification::Ble((cadence::MEASURE_UUID, v)) => {
+                telemetry_db::Notification::Ble((cadence::MEASURE_UUID, v)) => {
                     let csc_measurement = parse_csc_measurement(&v);
                     let o_rpm = last_csc_measurement
                         .and_then(|a| checked_rpm_and_new_count(&a, &csc_measurement))
