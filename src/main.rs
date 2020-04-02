@@ -180,7 +180,13 @@ pub fn main() {
                 let mut display = display_mutex_hrm.lock().unwrap();
                 display.update_heart_rate(Some(parse_hrm(&n.value).bpm as u8));
                 let elapsed = start.elapsed();
-                db_hrm.insert(session_key, elapsed, n).unwrap();
+                db_hrm
+                    .insert(
+                        session_key,
+                        elapsed,
+                        char_db::Notification::Ble((n.uuid, n.value)),
+                    )
+                    .unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
             Some(hrm)
@@ -214,7 +220,13 @@ pub fn main() {
                     display.update_power(Some(power_reading.instantaneous_power));
                     o_last_power_reading = Some(power_reading);
                     let elapsed = start.elapsed();
-                    db_kickr.insert(session_key, elapsed, n).unwrap();
+                    db_kickr
+                        .insert(
+                            session_key,
+                            elapsed,
+                            char_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 } else {
                     println!("Non-power notification from kickr: {:?}", n);
                 }
@@ -266,7 +278,13 @@ pub fn main() {
                     display.update_crank_count(crank_count);
                 }
                 o_last_cadence_measure = Some(csc_measure);
-                db_cadence_measure.insert(session_key, elapsed, n).unwrap();
+                db_cadence_measure
+                    .insert(
+                        session_key,
+                        elapsed,
+                        char_db::Notification::Ble((n.uuid, n.value)),
+                    )
+                    .unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
             Some(cadence_measure)
@@ -459,7 +477,7 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
     };
 
     for x in db.get_session_entries(session_key) {
-        if let Ok(((_, d, uuid), v)) = x {
+        if let Ok((d, value)) = x {
             let seconds_since_unix_epoch = (session_key + d.as_secs()) as u32;
             let mut r = match record {
                 Some(mut r) => {
@@ -476,18 +494,18 @@ fn db_session_to_fit(db: &char_db::CharDb, session_key: u64) -> Vec<u8> {
                 None => empty_record(seconds_since_unix_epoch),
             };
 
-            record = Some(match uuid {
-                hrm::MEASURE_UUID => {
+            record = Some(match value {
+                char_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                     r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     r
                 }
-                kickr::MEASURE_UUID => {
+                char_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
                     let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
                     last_power = p;
                     r.power = Some(p);
                     r
                 }
-                cadence::MEASURE_UUID => {
+                char_db::Notification::Ble((cadence::MEASURE_UUID, v)) => {
                     let csc_measurement = parse_csc_measurement(&v);
                     let o_rpm = last_csc_measurement
                         .and_then(|a| checked_rpm_and_new_count(&a, &csc_measurement))
