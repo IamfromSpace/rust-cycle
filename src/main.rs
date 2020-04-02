@@ -495,6 +495,13 @@ fn db_session_to_fit(db: &telemetry_db::CharDb, session_key: u64) -> Vec<u8> {
             };
 
             record = Some(match value {
+                telemetry_db::Notification::Gps(nmea0183::ParseResult::GGA(Some(gga))) => {
+                    r.latitude = Some(gga.latitude.as_f64());
+                    r.longitude = Some(gga.longitude.as_f64());
+                    r.altitude = Some(gga.altitude.meters);
+                    r
+                }
+                telemetry_db::Notification::Gps(_) => r,
                 telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                     r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     r
