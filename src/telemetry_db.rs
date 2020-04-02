@@ -7,7 +7,7 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct CharDb {
     db: sled::Db,
-    key_coder: bincode::Config,
+    serial_config: bincode::Config,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -24,8 +24,8 @@ enum NotificationType {
 
 pub fn open(path: String) -> sled::Result<CharDb> {
     let db = sled::open(path)?;
-    let key_coder = bincode::config().big_endian().clone();
-    Ok(CharDb { db, key_coder })
+    let serial_config = bincode::config().big_endian().clone();
+    Ok(CharDb { db, serial_config })
 }
 
 pub fn open_default() -> sled::Result<CharDb> {
@@ -45,11 +45,11 @@ impl CharDb {
         };
         // I can't imagine why this would fail...
         let key = self
-            .key_coder
+            .serial_config
             .serialize(&(session_key, elapsed, nt))
             .unwrap();
         let value = self
-            .key_coder
+            .serial_config
             .serialize(&(session_key, elapsed, notification))
             .unwrap();
         self.db.insert(key, value)?;
@@ -62,13 +62,13 @@ impl CharDb {
         // Maybe good to consider those cases at some point.
         let z: Vec<u8> = (*k).try_into().unwrap();
         let (session_key, d, nt): (u64, Duration, NotificationType) =
-            self.key_coder.deserialize(&z).unwrap();
+            self.serial_config.deserialize(&z).unwrap();
         (session_key, d, nt.into())
     }
 
     fn decode_value(&self, v: sled::IVec) -> Notification {
         let z: Vec<u8> = (*v).try_into().unwrap();
-        self.key_coder.deserialize(&z).unwrap()
+        self.serial_config.deserialize(&z).unwrap()
     }
 
     fn decode(
@@ -81,7 +81,7 @@ impl CharDb {
     pub fn get_most_recent_session(&self) -> sled::Result<Option<u64>> {
         let x = self
             .db
-            .get_lt(self.key_coder.serialize(&u64::max_value()).unwrap())?;
+            .get_lt(self.serial_config.serialize(&u64::max_value()).unwrap())?;
         Ok(x.map(|(k, _)| self.decode_key(k).0))
     }
 
@@ -89,8 +89,8 @@ impl CharDb {
         &self,
         session_key: u64,
     ) -> impl Iterator<Item = sled::Result<((Duration, Notification))>> + '_ {
-        let start = self.key_coder.serialize(&session_key).unwrap();
-        let end = self.key_coder.serialize(&(session_key + 1)).unwrap();
+        let start = self.serial_config.serialize(&session_key).unwrap();
+        let end = self.serial_config.serialize(&(session_key + 1)).unwrap();
         self.db.range(start..end).map(move |x| {
             x.map(|xx| {
                 let decoded = self.decode(xx);
