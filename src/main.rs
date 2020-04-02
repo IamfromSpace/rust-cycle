@@ -32,6 +32,12 @@ enum OrExit<T> {
     NotExit(T),
     Exit,
 }
+
+enum Location {
+    Indoor(workout::Workout),
+    Outdoor,
+}
+
 impl<T: std::fmt::Display> std::fmt::Display for OrExit<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -74,6 +80,7 @@ pub fn main() {
                 Node((
                     "Nathan".to_string(),
                     vec![
+                        Leaf(NotExit("Outdoor")),
                         Node((
                             "Fixed".to_string(),
                             vec![
@@ -89,7 +96,11 @@ pub fn main() {
                 )),
                 Node((
                     "Tests".to_string(),
-                    vec![Leaf(NotExit("P/H/70W")), Leaf(NotExit("P/H/Ramp"))],
+                    vec![
+                        Leaf(NotExit("GPS Only")),
+                        Leaf(NotExit("P/H/70W")),
+                        Leaf(NotExit("P/H/Ramp")),
+                    ],
                 )),
                 Leaf(Exit),
             ],
@@ -111,28 +122,29 @@ pub fn main() {
             NotExit(x) => x,
         };
 
-        let (use_hr, use_power, use_cadence, workout) = match workout_name {
-            "100W" => (false, true, false, single_value(100)),
-            "170W" => (true, true, true, single_value(170)),
-            "175W" => (true, true, true, single_value(175)),
-            "180W" => (true, true, true, single_value(180)),
-            "185W" => (true, true, true, single_value(185)),
-            "Ramp" => (true, true, true, ramp_test(120)),
+        let (use_hr, use_cadence, location) = match workout_name {
+            "100W" => (false, false, Location::Indoor(single_value(100))),
+            "Outdoor" => (true, true, Location::Outdoor),
+            "170W" => (true, true, Location::Indoor(single_value(170))),
+            "175W" => (true, true, Location::Indoor(single_value(175))),
+            "180W" => (true, true, Location::Indoor(single_value(180))),
+            "185W" => (true, true, Location::Indoor(single_value(185))),
+            "Ramp" => (true, true, Location::Indoor(ramp_test(120))),
             "1st Big Interval" => (
                 true,
                 true,
-                true,
-                create_big_start_interval(
+                Location::Indoor(create_big_start_interval(
                     (Duration::from_secs(300), 140),
                     14,
                     Duration::from_secs(150),
                     (Duration::from_secs(60), 320),
                     (Duration::from_secs(90), 120),
                     Some(160),
-                ),
+                )),
             ),
-            "P/H/70W" => (true, true, false, single_value(70)),
-            "P/H/Ramp" => (true, true, false, ramp_test(90)),
+            "P/H/70W" => (true, false, Location::Indoor(single_value(70))),
+            "P/H/Ramp" => (true, false, Location::Indoor(ramp_test(90))),
+            "GPS Only" => (false, false, Location::Outdoor),
             _ => panic!("Unexpected workout_name!"),
         };
 
@@ -151,6 +163,25 @@ pub fn main() {
             .as_secs();
 
         lock_and_show(&display_mutex, &format!("Running {}", workout_name));
+
+        let _gps = if let Location::Outdoor = location {
+            let mut gps =
+                or_crash_with_msg(&display_mutex, gps::Gps::new().ok(), "Couldn't setup GPS!");
+            let db_gps = db.clone();
+            gps.on_update(Box::new(move |s| {
+                db_gps
+                    .insert(
+                        session_key,
+                        start.elapsed(),
+                        telemetry_db::Notification::Gps(s),
+                    )
+                    .unwrap();
+            }));
+            lock_and_show(&display_mutex, &format!("GPS Ready"));
+            Some(gps)
+        } else {
+            None
+        };
 
         lock_and_show(&display_mutex, &"Setting up Bluetooth");
         let central = or_crash_with_msg(
@@ -194,7 +225,7 @@ pub fn main() {
             None
         };
 
-        let kickr_and_handle = if use_power {
+        let kickr_and_handle = if let Location::Indoor(workout) = location {
             // Connect to Kickr and print its raw notifications
             let kickr = or_crash_with_msg(
                 &display_mutex,
