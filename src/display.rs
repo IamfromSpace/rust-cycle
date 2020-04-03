@@ -17,6 +17,7 @@ pub struct Display<'a> {
     heart_rate: Option<(u8, Instant)>,
     external_energy: f64,
     crank_count: Option<u32>,
+    gps_fix: Option<(bool, Instant)>,
     start_instant: Instant,
     has_rendered: bool,
 }
@@ -34,6 +35,7 @@ impl<'a> Display<'a> {
             heart_rate: None,
             external_energy: 0.0,
             crank_count: None,
+            gps_fix: None,
             start_instant,
             has_rendered: false,
         }
@@ -57,6 +59,10 @@ impl<'a> Display<'a> {
 
     pub fn update_crank_count(&mut self, crank_count: u32) {
         self.crank_count = Some(crank_count);
+    }
+
+    pub fn set_gps_fix(&mut self, has_fix: bool) {
+        self.gps_fix = Some((has_fix, Instant::now()));
     }
 
     pub fn render_msg(&mut self, s: &str) {
@@ -123,6 +129,7 @@ impl<'a> Display<'a> {
         self.power = self.power.and_then(none_if_stale);
         self.cadence = self.cadence.and_then(none_if_stale);
         self.heart_rate = self.heart_rate.and_then(none_if_stale);
+        self.gps_fix = self.gps_fix.and_then(none_if_stale);
 
         let p = Layout::default().calculate_glyphs(
             &self.fonts,
@@ -288,7 +295,23 @@ impl<'a> Display<'a> {
                 ..SectionText::default()
             }],
         );
-        self.draw(&vec![p, c, h, e, t1, t2, d1, d2]);
+        let g = Layout::default().calculate_glyphs(
+            &self.fonts,
+            &SectionGeometry {
+                screen_position: (131.0, 10.0 + 27.5 + 5.0 + 22.5),
+                bounds: (WIDTH as f32, HEIGHT as f32),
+            },
+            &[SectionText {
+                text: &match self.gps_fix {
+                    None => "No GPS",
+                    Some((false, _)) => "No Fix",
+                    Some((true, _)) => "Fix",
+                },
+                scale: time_scale,
+                ..SectionText::default()
+            }],
+        );
+        self.draw(&vec![p, c, h, e, t1, t2, d1, d2, g]);
 
         // TODO: This seems a bit silly, but otherwise the display starts out
         // quite faint.
