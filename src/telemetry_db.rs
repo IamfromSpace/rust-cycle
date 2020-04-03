@@ -48,10 +48,7 @@ impl CharDb {
             .serial_config
             .serialize(&(session_key, elapsed, nt))
             .unwrap();
-        let value = self
-            .serial_config
-            .serialize(&(session_key, elapsed, notification))
-            .unwrap();
+        let value = self.serial_config.serialize(&notification).unwrap();
         self.db.insert(key, value)?;
         Ok(())
     }
