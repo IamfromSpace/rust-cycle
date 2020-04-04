@@ -175,19 +175,19 @@ pub fn main() {
             let db_gps = db.clone();
             let display_mutex_for_gps = display_mutex.clone();
             gps.on_update(Box::new(move |s| {
-                db_gps
-                    .insert(
-                        session_key,
-                        start.elapsed(),
-                        telemetry_db::Notification::Gps(s.clone()),
-                    )
-                    .unwrap();
                 let mut display = display_mutex_for_gps.lock().unwrap();
                 match s {
                     nmea0183::ParseResult::GGA(Some(_)) => display.set_gps_fix(true),
                     nmea0183::ParseResult::GGA(None) => display.set_gps_fix(false),
                     _ => (),
                 };
+                db_gps
+                    .insert(
+                        session_key,
+                        start.elapsed(),
+                        telemetry_db::Notification::Gps(s),
+                    )
+                    .unwrap();
             }));
             lock_and_show(&display_mutex, &format!("GPS Ready"));
             Some(gps)
