@@ -1,5 +1,11 @@
 // Port (using only v2/black) from the inky-phat library
 
+use embedded_graphics::{
+    drawable::Pixel,
+    geometry::{Point, Size},
+    pixelcolor::BinaryColor,
+    DrawTarget,
+};
 use rppal::{
     gpio::{Gpio, InputPin, Level, OutputPin},
     spi::{Bus, Mode, SlaveSelect, Spi},
@@ -263,6 +269,26 @@ impl InkyPhat {
 impl Drop for InkyPhat {
     fn drop(&mut self) {
         self.busy_wait();
+    }
+}
+
+impl DrawTarget<BinaryColor> for InkyPhat {
+    type Error = core::convert::Infallible;
+
+    fn draw_pixel(&mut self, pixel: Pixel<BinaryColor>) -> Result<(), Self::Error> {
+        let Pixel(Point { x, y }, color) = pixel;
+        self.set_pixel(
+            (x as u32, y as u32),
+            match color {
+                BinaryColor::On => BLACK,
+                BinaryColor::Off => WHITE,
+            },
+        );
+        Ok(())
+    }
+
+    fn size(&self) -> Size {
+        Size::new(WIDTH, HEIGHT)
     }
 }
 
