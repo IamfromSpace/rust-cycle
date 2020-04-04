@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use std::time::Duration;
 
 #[derive(Clone)]
-pub struct CharDb {
+pub struct TelemetryDb {
     db: sled::Db,
     serial_config: bincode::Config,
 }
@@ -22,17 +22,17 @@ enum NotificationType {
     Gps,
 }
 
-pub fn open(path: String) -> sled::Result<CharDb> {
+pub fn open(path: String) -> sled::Result<TelemetryDb> {
     let db = sled::open(path)?;
     let serial_config = bincode::config().big_endian().clone();
-    Ok(CharDb { db, serial_config })
+    Ok(TelemetryDb { db, serial_config })
 }
 
-pub fn open_default() -> sled::Result<CharDb> {
+pub fn open_default() -> sled::Result<TelemetryDb> {
     open(".rust-cycle.sled".to_string())
 }
 
-impl CharDb {
+impl TelemetryDb {
     pub fn insert(
         &self,
         session_key: u64,

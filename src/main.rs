@@ -504,7 +504,7 @@ fn or_crash_with_msg<T>(
     }
 }
 
-fn db_session_to_fit(db: &telemetry_db::CharDb, session_key: u64) -> Vec<u8> {
+fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8> {
     let mut last_power: u16 = 0;
     let mut last_csc_measurement: Option<CscMeasurement> = None;
     let mut record: Option<fit::FitRecord> = None;
