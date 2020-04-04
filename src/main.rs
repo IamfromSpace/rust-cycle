@@ -54,11 +54,11 @@ pub fn main() {
     let is_output_mode = args.is_empty() || args.contains("--output");
     let is_version_mode = args.contains("-v") || args.contains("--version");
 
-    let db = telemetry_db::open_default().unwrap();
-
     if is_version_mode {
         println!("{}", git_version::git_version!());
     } else if is_output_mode {
+        let db = telemetry_db::open_default().unwrap();
+
         // TODO: Should accept a cli flag for output mode vs session mode
         let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
         File::create("workout.fit")
@@ -66,6 +66,8 @@ pub fn main() {
             .write_all(&db_session_to_fit(&db, most_recent_session)[..])
             .unwrap();
     } else {
+        let db = telemetry_db::open_default().unwrap();
+
         // Create Our Display
         let mut display = display::Display::new(Instant::now());
 
