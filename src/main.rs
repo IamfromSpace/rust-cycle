@@ -101,6 +101,7 @@ pub fn main() {
                     "Tests".to_string(),
                     vec![
                         Leaf(NotExit("GPS Only")),
+                        Leaf(NotExit("GPS & HR")),
                         Leaf(NotExit("P/H/70W")),
                         Leaf(NotExit("P/H/Ramp")),
                     ],
@@ -148,6 +149,7 @@ pub fn main() {
             "P/H/70W" => (true, false, Location::Indoor(single_value(70))),
             "P/H/Ramp" => (true, false, Location::Indoor(ramp_test(90))),
             "GPS Only" => (false, false, Location::Outdoor),
+            "GPS & HR" => (true, false, Location::Outdoor),
             _ => panic!("Unexpected workout_name!"),
         };
 
