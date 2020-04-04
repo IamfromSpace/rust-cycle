@@ -5,6 +5,8 @@ mod display;
 mod fit;
 mod gps;
 mod inky_phat;
+#[cfg(feature = "simulator")]
+mod inky_phat_simulator;
 mod peripherals;
 mod telemetry_db;
 mod utils;

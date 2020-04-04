@@ -4,6 +4,13 @@ Rust Cycle is a (WIP) bicycle computer built on Rust!
 
 ## Build
 
+### Local Screen Simulator
+
+A simulator can be used for the display.
+It uses `embedded_graphics_simulator`, so follow the setup [here](https://docs.rs/embedded-graphics-simulator/0.2.0/embedded_graphics_simulator/index.html#setup).
+
+Then, when building pass in the "simulator" feature.
+
 ### For Pi Zero
 
 #### Install libs
