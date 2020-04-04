@@ -29,14 +29,19 @@ impl Gps {
             loop {
                 let byte_count = uart.read(&mut buffer[..]).unwrap();
 
-                // TODO: Put handler in a separate thread connected by a queue
-                // so that the "user" code does not block the read/parse thread
-                for result in parser.parse_from_bytes(&buffer[..byte_count]) {
-                    if let Ok(r) = result {
-                        if let Some(handler) = handler_for_thread.lock().unwrap().as_mut() {
-                            handler(r);
+                if byte_count > 0 {
+                    // TODO: Put handler in a separate thread connected by a queue
+                    // so that the "user" code does not block the read/parse thread
+                    for result in parser.parse_from_bytes(&buffer[..byte_count]) {
+                        if let Ok(r) = result {
+                            if let Some(handler) = handler_for_thread.lock().unwrap().as_mut() {
+                                handler(r);
+                            }
                         }
                     }
+                } else {
+                    // Defer to other threads
+                    thread::yield_now();
                 }
 
                 // If the thread is  the last owner of the Arc, then there are
@@ -44,9 +49,6 @@ impl Gps {
                 if Arc::strong_count(&running_for_thread) <= 1 {
                     break;
                 }
-
-                // Defer to other threads
-                thread::yield_now();
             }
         }));
         Ok(Gps {
