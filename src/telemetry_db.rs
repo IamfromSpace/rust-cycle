@@ -10,13 +10,13 @@ pub struct CharDb {
     serial_config: bincode::Config,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Notification {
     Ble((UUID, Vec<u8>)),
     Gps(ParseResult),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 enum NotificationType {
     Ble(UUID),
     Gps,
