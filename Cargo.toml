@@ -14,3 +14,4 @@ glyph_brush_layout = "0.1"
 chrono = "0.4"
 nmea0183 = { git = "https://github.com/IamfromSpace/nmea0183.git", rev = "66e205d97438bf07", features = ["serde"] }
 serde = "1.0"
+git-version = "0.3"

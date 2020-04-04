@@ -52,10 +52,13 @@ pub fn main() {
 
     let args: BTreeSet<String> = env::args().collect();
     let is_output_mode = args.is_empty() || args.contains("--output");
+    let is_version_mode = args.contains("-v") || args.contains("--version");
 
     let db = telemetry_db::open_default().unwrap();
 
-    if is_output_mode {
+    if is_version_mode {
+        println!("{}", git_version::git_version!());
+    } else if is_output_mode {
         // TODO: Should accept a cli flag for output mode vs session mode
         let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
         File::create("workout.fit")
