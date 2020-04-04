@@ -505,7 +505,7 @@ fn or_crash_with_msg<T>(
 }
 
 fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8> {
-    let mut last_power: u16 = 0;
+    let mut last_power: Option<u16> = None;
     let mut last_csc_measurement: Option<CscMeasurement> = None;
     let mut record: Option<fit::FitRecord> = None;
     let mut records = Vec::new();
@@ -528,7 +528,7 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                         r
                     } else {
                         if let None = r.power {
-                            r.power = Some(last_power);
+                            r.power = last_power;
                         }
                         records.push(r);
                         empty_record(seconds_since_unix_epoch)
@@ -551,7 +551,7 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                 }
                 telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
                     let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
-                    last_power = p;
+                    last_power = Some(p);
                     r.power = Some(p);
                     r
                 }
