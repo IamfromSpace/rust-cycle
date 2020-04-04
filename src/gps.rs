@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
     thread,
     thread::JoinHandle,
+    time::Duration,
 };
 
 pub struct Gps {
@@ -41,7 +42,7 @@ impl Gps {
                     }
                 } else {
                     // Defer to other threads
-                    thread::yield_now();
+                    thread::sleep(Duration::from_millis(50));
                 }
 
                 // If the thread is  the last owner of the Arc, then there are
