@@ -1,17 +1,95 @@
-use crate::inky_phat::{InkyPhat, BLACK, HEIGHT, WIDTH};
+#[cfg(not(feature = "simulator"))]
+use crate::inky_phat::InkyPhat;
+#[cfg(feature = "simulator")]
+use crate::inky_phat_simulator::InkyPhat;
 use chrono::Local;
-use glyph_brush_layout::{
-    rusttype::{Font, Point, PositionedGlyph, Scale},
-    GlyphPositioner, HorizontalAlign, Layout, SectionGeometry, SectionText, VerticalAlign,
+use embedded_graphics::{
+    drawable::Drawable,
+    fonts::{Font6x6, Font8x16, Text},
+    geometry,
+    geometry::Size,
+    pixelcolor::BinaryColor,
+    style::TextStyleBuilder,
+    DrawTarget,
 };
-use std::include_bytes;
 use std::time::{Duration, Instant};
 
-// TODO: This is looking more and more like a "live workout" which has
-// some sort of "Display" trait or something.
-pub struct Display<'a> {
+// TODO: Our InkyPhat is not Send when this is in simulator mode not exactly
+// sure how to address this.
+#[cfg(feature = "simulator")]
+unsafe impl Send for Display {}
+
+pub struct Display {
     inky_phat: InkyPhat,
-    fonts: Vec<Font<'a>>,
+    workout: WorkoutDisplay,
+    has_rendered: bool,
+}
+
+impl Display {
+    pub fn new(start_instant: Instant) -> Display {
+        let inky_phat = InkyPhat::new();
+        let workout = WorkoutDisplay::new(start_instant);
+        Display {
+            inky_phat,
+            workout,
+            has_rendered: false,
+        }
+    }
+
+    pub fn update_power(&mut self, power: Option<i16>) {
+        self.workout.update_power(power);
+    }
+
+    pub fn update_cadence(&mut self, cadence: Option<u8>) {
+        self.workout.update_cadence(cadence);
+    }
+
+    pub fn update_heart_rate(&mut self, heart_rate: Option<u8>) {
+        self.workout.update_heart_rate(heart_rate);
+    }
+
+    pub fn update_external_energy(&mut self, external_energy: f64) {
+        self.workout.update_external_energy(external_energy);
+    }
+
+    pub fn update_crank_count(&mut self, crank_count: u32) {
+        self.workout.update_crank_count(crank_count);
+    }
+
+    pub fn set_gps_fix(&mut self, has_fix: bool) {
+        self.workout.set_gps_fix(has_fix);
+    }
+
+    pub fn render_msg(&mut self, s: &str) {
+        self.inky_phat.clear(BinaryColor::Off).unwrap();
+        MsgDisplay::new(s).draw(&mut self.inky_phat).unwrap();
+        self.inky_phat.update();
+    }
+
+    pub fn render_options(&mut self, options: &Vec<&str>) {
+        self.inky_phat.clear(BinaryColor::Off).unwrap();
+        OptionDisplay::new(&options[..])
+            .draw(&mut self.inky_phat)
+            .unwrap();
+        self.inky_phat.update();
+    }
+
+    pub fn render(&mut self) {
+        self.inky_phat.clear(BinaryColor::Off).unwrap();
+        self.workout.clone().draw(&mut self.inky_phat).unwrap();
+        // TODO: This seems a bit silly, but otherwise the display starts out
+        // quite faint.
+        if self.has_rendered {
+            self.inky_phat.update_fast();
+        } else {
+            self.has_rendered = true;
+            self.inky_phat.update();
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct WorkoutDisplay {
     power: Option<(i16, Instant)>,
     cadence: Option<(u8, Instant)>,
     heart_rate: Option<(u8, Instant)>,
@@ -19,17 +97,11 @@ pub struct Display<'a> {
     crank_count: Option<u32>,
     gps_fix: Option<(bool, Instant)>,
     start_instant: Instant,
-    has_rendered: bool,
 }
 
-impl<'a> Display<'a> {
-    pub fn new(start_instant: Instant) -> Display<'a> {
-        let inky_phat = InkyPhat::new();
-        let fonts = vec![Font::from_bytes(&include_bytes!("../fonts/JOYSTIX.TTF")[..]).unwrap()];
-
-        Display {
-            inky_phat,
-            fonts,
+impl WorkoutDisplay {
+    pub fn new(start_instant: Instant) -> WorkoutDisplay {
+        WorkoutDisplay {
             power: None,
             cadence: None,
             heart_rate: None,
@@ -37,7 +109,6 @@ impl<'a> Display<'a> {
             crank_count: None,
             gps_fix: None,
             start_instant,
-            has_rendered: false,
         }
     }
 
@@ -64,281 +135,195 @@ impl<'a> Display<'a> {
     pub fn set_gps_fix(&mut self, has_fix: bool) {
         self.gps_fix = Some((has_fix, Instant::now()));
     }
+}
 
-    pub fn render_msg(&mut self, s: &str) {
-        self.inky_phat.clear();
-        self.draw(&vec![Layout::default_wrap()
-            .h_align(HorizontalAlign::Center)
-            .v_align(VerticalAlign::Center)
-            .calculate_glyphs(
-                &self.fonts,
-                &SectionGeometry {
-                    screen_position: (WIDTH as f32 * 0.5, HEIGHT as f32 * 0.5 - 15.0),
-                    bounds: (WIDTH as f32 - 20.0, HEIGHT as f32 - 20.0),
-                },
-                &[SectionText {
-                    text: &s,
-                    scale: Scale::uniform(20.0),
-                    ..SectionText::default()
-                }],
-            )]);
-        self.inky_phat.update();
-    }
+impl Drawable<BinaryColor> for WorkoutDisplay {
+    fn draw<D: DrawTarget<BinaryColor>>(self, target: &mut D) -> Result<(), D::Error> {
+        let style_large = TextStyleBuilder::new(Font8x16)
+            .text_color(BinaryColor::On)
+            .background_color(BinaryColor::Off)
+            .build();
+        let style_tiny = TextStyleBuilder::new(Font6x6)
+            .text_color(BinaryColor::On)
+            .background_color(BinaryColor::Off)
+            .build();
 
-    pub fn render_options(&mut self, options: &Vec<&str>) {
-        self.inky_phat.clear();
-        let mut drawable = Vec::with_capacity(options.len() + 4);
-        for i in 0..options.len() {
-            let option_num = i + 2;
-            drawable.push(Layout::default().calculate_glyphs(
-                &self.fonts,
-                &SectionGeometry {
-                    screen_position: (10.0, i as f32 * 20.0 - 10.0),
-                    ..SectionGeometry::default()
-                },
-                &[SectionText {
-                    text: &format!("{}:{}", option_num, options[i]),
-                    scale: Scale::uniform(20.0),
-                    ..SectionText::default()
-                }],
-            ));
-            drawable.push(Layout::default().calculate_glyphs(
-                &self.fonts,
-                &SectionGeometry {
-                    screen_position: (28.0 + i as f32 * 37.5, 73.0),
-                    ..SectionGeometry::default()
-                },
-                &[SectionText {
-                    text: &option_num.to_string(),
-                    scale: Scale::uniform(20.0),
-                    ..SectionText::default()
-                }],
-            ));
-        }
-        self.draw(&drawable);
-        self.inky_phat.update();
-    }
-
-    pub fn render(&mut self) {
-        self.inky_phat.clear();
-        let height = 22.0;
-        let num_scale = Scale::uniform(height);
-        let units_scale = Scale::uniform(height * 0.5);
-
-        // We lazily purge any values that are older than 5s just before render
-        self.power = self.power.and_then(none_if_stale);
-        self.cadence = self.cadence.and_then(none_if_stale);
-        self.heart_rate = self.heart_rate.and_then(none_if_stale);
-        self.gps_fix = self.gps_fix.and_then(none_if_stale);
-
-        let p = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (5.0, 0.0),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[
-                SectionText {
-                    text: "POW",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: &self
-                        .power
-                        .map_or("---".to_string(), |x| format!("{:03}", x.0)),
-                    scale: num_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: "W",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-            ],
-        );
-        let c = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (5.0, height),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[
-                SectionText {
-                    text: "CAD",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: &self
-                        .cadence
-                        .map_or("---".to_string(), |x| format!("{:03}", x.0)),
-                    scale: num_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: "RPM",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-            ],
-        );
-        let h = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (5.0, height * 2.0),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[
-                SectionText {
-                    text: "HR ",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: &self
-                        .heart_rate
-                        .map_or("---".to_string(), |x| format!("{:03}", x.0)),
-                    scale: num_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: "BPM",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-            ],
-        );
         let elapsed_secs = self.start_instant.elapsed().as_secs();
-        let e = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (5.0, height * 3.0),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[
-                SectionText {
-                    text: "ME ",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: &format!(
-                        "{:04}",
-                        // We just assume 80rpm to get crank revolutions for now
-                        metabolic_cost_in_kcal(
-                            self.external_energy,
-                            self.crank_count.unwrap_or((elapsed_secs * 80 / 60) as u32)
-                        ) as u16
-                    ),
-                    scale: num_scale,
-                    ..SectionText::default()
-                },
-                SectionText {
-                    text: "KCAL",
-                    scale: units_scale,
-                    ..SectionText::default()
-                },
-            ],
-        );
-        let time_scale = Scale::uniform(height * 0.75);
-        let t1 = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (111.0, 10.0),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[SectionText {
-                text: "CURRENT",
-                scale: units_scale,
-                ..SectionText::default()
-            }],
-        );
-        let t2 = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (111.0, 10.0 + 5.0),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[SectionText {
-                text: &format!("{}", Local::now().format("%T")),
-                scale: time_scale,
-                ..SectionText::default()
-            }],
-        );
-        let d1 = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (111.0, 10.0 + 27.5),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[SectionText {
-                text: "ELAPSED",
-                scale: units_scale,
-                ..SectionText::default()
-            }],
-        );
-        let d2 = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (111.0, 10.0 + 27.5 + 5.0),
-                bounds: (WIDTH as f32, HEIGHT as f32),
-            },
-            &[SectionText {
-                text: &format!(
+        // We lazily purge any values that are older than 5s just before render
+        let power = self.power.and_then(none_if_stale);
+        let cadence = self.cadence.and_then(none_if_stale);
+        let heart_rate = self.heart_rate.and_then(none_if_stale);
+        let gps_fix = self.gps_fix.and_then(none_if_stale);
+
+        Text::new("POW (W)", geometry::Point::new(8, 8))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        Text::new(
+            &power.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+            geometry::Point::new(8, 8 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new("CAD (RPM)", geometry::Point::new(8, 8 + 6 + 16 + 2))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        Text::new(
+            &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new(
+            "HR (BPM)",
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2),
+        )
+        .into_styled(style_tiny)
+        .draw(target)?;
+
+        Text::new(
+            &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new(
+            "ME (KCAL)",
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2),
+        )
+        .into_styled(style_tiny)
+        .draw(target)?;
+
+        Text::new(
+            &format!(
+                "{:04}",
+                // We just assume 80rpm to get crank revolutions for now
+                metabolic_cost_in_kcal(
+                    self.external_energy,
+                    self.crank_count.unwrap_or((elapsed_secs * 80 / 60) as u32)
+                ) as u16
+            ),
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new("CURRENT", geometry::Point::new(8 + 50, 8))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        Text::new(
+            &format!("{}", Local::now().format("%T")),
+            geometry::Point::new(8 + 50, 8 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new("ELAPSED", geometry::Point::new(8 + 50, 8 + 6 + 16 + 2))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        Text::new(
+            &format!(
+                "{}",
+                &format!(
                     "{:02}:{:02}:{:02}",
                     elapsed_secs / 3600,
                     (elapsed_secs / 60) % 60,
                     elapsed_secs % 60
-                ),
-                scale: time_scale,
-                ..SectionText::default()
-            }],
-        );
-        let g = Layout::default().calculate_glyphs(
-            &self.fonts,
-            &SectionGeometry {
-                screen_position: (131.0, 10.0 + 27.5 + 5.0 + 22.5),
-                bounds: (WIDTH as f32, HEIGHT as f32),
+                )
+            ),
+            geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new(
+            "GPS",
+            geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6 + 16 + 2),
+        )
+        .into_styled(style_tiny)
+        .draw(target)?;
+
+        Text::new(
+            &match gps_fix {
+                None => "NO GPS",
+                Some((false, _)) => "NO FIX",
+                Some((true, _)) => "FIX",
             },
-            &[SectionText {
-                text: &match self.gps_fix {
-                    None => "No GPS",
-                    Some((false, _)) => "No Fix",
-                    Some((true, _)) => "Fix",
-                },
-                scale: time_scale,
-                ..SectionText::default()
-            }],
-        );
-        self.draw(&vec![p, c, h, e, t1, t2, d1, d2, g]);
+            geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
 
-        // TODO: This seems a bit silly, but otherwise the display starts out
-        // quite faint.
-        if self.has_rendered {
-            self.inky_phat.update_fast();
-        } else {
-            self.has_rendered = true;
-            self.inky_phat.update();
-        }
+        Ok(())
     }
+}
 
-    fn draw<B, C>(&mut self, v: &Vec<Vec<(PositionedGlyph, B, C)>>) {
-        v.iter().for_each(|v| {
-            v.into_iter().for_each(|(positioned_glyph, _, _)| {
-                let Point {
-                    x: x_offset,
-                    y: y_offset,
-                } = positioned_glyph.position();
-                positioned_glyph.draw(|x, y, v| {
-                    // This should be closer to .5 because of the gamma curve?
-                    if v > 0.25 {
-                        self.inky_phat
-                            .set_pixel((x_offset as u32 + x, y_offset as u32 + y), BLACK)
-                    }
-                })
-            })
-        });
+pub struct MsgDisplay<'a>(&'a str);
+
+impl<'a> MsgDisplay<'a> {
+    pub fn new(msg: &'a str) -> MsgDisplay<'a> {
+        MsgDisplay(msg)
+    }
+}
+
+impl<'a> Drawable<BinaryColor> for MsgDisplay<'a> {
+    fn draw<D: DrawTarget<BinaryColor>>(self, target: &mut D) -> Result<(), D::Error> {
+        let style_large = TextStyleBuilder::new(Font8x16)
+            .text_color(BinaryColor::On)
+            .background_color(BinaryColor::Off)
+            .build();
+
+        let Size { height, width } = target.size();
+
+        // TODO: Wrap Text
+        let x = (width as i32 - (8 * (self.0.len() as i32))) / 2;
+        let y = ((height as i32) - 16) / 2;
+
+        Text::new(&self.0, geometry::Point::new(x, y))
+            .into_styled(style_large)
+            .draw(target)
+    }
+}
+
+pub struct OptionDisplay<'a, 'b>(&'a [&'b str]);
+
+impl<'a, 'b> OptionDisplay<'a, 'b> {
+    pub fn new(opts: &'a [&'b str]) -> OptionDisplay<'a, 'b> {
+        OptionDisplay(opts)
+    }
+}
+
+impl<'a, 'b> Drawable<BinaryColor> for OptionDisplay<'a, 'b> {
+    fn draw<D: DrawTarget<BinaryColor>>(self, target: &mut D) -> Result<(), D::Error> {
+        let style_large = TextStyleBuilder::new(Font8x16)
+            .text_color(BinaryColor::On)
+            .background_color(BinaryColor::Off)
+            .build();
+
+        for i in 0..self.0.len() {
+            let option_num = i + 2;
+            Text::new(
+                &format!("{}: {}", option_num, (self.0)[i]),
+                geometry::Point::new(10, (i as i32) * 16 + 10),
+            )
+            .into_styled(style_large)
+            .draw(target)?;
+
+            Text::new(
+                &format!("{}", option_num),
+                geometry::Point::new(28 + (i as i32) * 37, target.size().height as i32 - 16),
+            )
+            .into_styled(style_large)
+            .draw(target)?;
+        }
+
+        Ok(())
     }
 }
 
