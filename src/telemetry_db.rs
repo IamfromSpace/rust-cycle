@@ -85,7 +85,7 @@ impl TelemetryDb {
     pub fn get_session_entries(
         &self,
         session_key: u64,
-    ) -> impl Iterator<Item = sled::Result<((Duration, Notification))>> + '_ {
+    ) -> impl Iterator<Item = sled::Result<(Duration, Notification)>> + '_ {
         let start = self.serial_config.serialize(&session_key).unwrap();
         let end = self.serial_config.serialize(&(session_key + 1)).unwrap();
         self.db.range(start..end).map(move |x| {
