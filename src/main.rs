@@ -118,6 +118,7 @@ pub fn main() {
             Exit => {
                 display.render_msg("Goodbye");
                 // TODO: Set this up in a way that doesn't require manual drops
+                drop(db);
                 drop(display);
                 drop(buttons);
                 std::process::Command::new("sudo")
