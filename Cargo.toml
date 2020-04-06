@@ -16,6 +16,7 @@ serde = "1.0"
 git-version = "0.3"
 embedded-graphics = "0.6"
 embedded-graphics-simulator = { version = "0.2", optional = true }
+tiny_http = "0.6"
 
 [features]
 simulator =  ["embedded-graphics-simulator"]

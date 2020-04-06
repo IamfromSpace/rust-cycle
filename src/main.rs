@@ -9,6 +9,7 @@ mod inky_phat;
 mod inky_phat_simulator;
 mod peripherals;
 mod telemetry_db;
+mod telemetry_server;
 mod utils;
 mod workout;
 
@@ -22,8 +23,6 @@ use btleplug::bluez::manager::Manager;
 use peripherals::{cadence, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr};
 use std::collections::BTreeSet;
 use std::env;
-use std::fs::File;
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -53,22 +52,15 @@ pub fn main() {
     env_logger::init();
 
     let args: BTreeSet<String> = env::args().collect();
-    let is_output_mode = args.is_empty() || args.contains("--output");
     let is_version_mode = args.contains("-v") || args.contains("--version");
 
     if is_version_mode {
         println!("{}", git_version::git_version!());
-    } else if is_output_mode {
-        let db = telemetry_db::open_default().unwrap();
-
-        // TODO: Should accept a cli flag for output mode vs session mode
-        let most_recent_session = db.get_most_recent_session().unwrap().unwrap();
-        File::create("workout.fit")
-            .unwrap()
-            .write_all(&db_session_to_fit(&db, most_recent_session)[..])
-            .unwrap();
     } else {
         let db = telemetry_db::open_default().unwrap();
+
+        // Serve our telemetry data
+        let server = telemetry_server::TelemetryServer::new(db.clone());
 
         // Create Our Display
         let mut display = display::Display::new(Instant::now());
@@ -119,6 +111,7 @@ pub fn main() {
                 display.render_msg("Goodbye");
                 // TODO: Set this up in a way that doesn't require manual drops
                 drop(db);
+                drop(server);
                 drop(display);
                 drop(buttons);
                 std::process::Command::new("sudo")
