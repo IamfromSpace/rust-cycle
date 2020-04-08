@@ -1,7 +1,7 @@
 use crate::db_session_to_fit;
 use crate::telemetry_db::TelemetryDb;
 use std::{mem, sync::Arc, thread, thread::JoinHandle, time::Duration};
-use tiny_http::{Method, Response, Server, StatusCode};
+use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 pub struct TelemetryServer {
     running: Option<Arc<()>>,
@@ -39,9 +39,12 @@ impl TelemetryServer {
                                         session = db_session_to_fit(&db, most_recent_session);
                                         Response::new(
                                             StatusCode(200),
-                                            // TODO; Content Type (application/vnd.ant.fit)
                                             // TODO; Header for next most recent
-                                            vec![],
+                                            vec![Header::from_bytes(
+                                                &b"Content-Type"[..],
+                                                &b"application/vnd.ant.fit"[..],
+                                            )
+                                            .unwrap()],
                                             &session[..],
                                             None,
                                             None,
