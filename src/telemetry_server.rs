@@ -37,18 +37,37 @@ impl TelemetryServer {
                                 match db.get_most_recent_session().unwrap() {
                                     Some(most_recent_session) => {
                                         session = db_session_to_fit(&db, most_recent_session);
-                                        Response::new(
+                                        let mut r = Response::new(
                                             StatusCode(200),
                                             // TODO; Header for next most recent
-                                            vec![Header::from_bytes(
-                                                &b"Content-Type"[..],
-                                                &b"application/vnd.ant.fit"[..],
-                                            )
-                                            .unwrap()],
+                                            vec![
+                                                Header::from_bytes(
+                                                    &b"Content-Type"[..],
+                                                    &b"application/vnd.ant.fit"[..],
+                                                )
+                                                .unwrap(),
+                                                Header::from_bytes(
+                                                    &b"Session-Key"[..],
+                                                    format!("{:?}", most_recent_session),
+                                                )
+                                                .unwrap(),
+                                            ],
                                             &session[..],
                                             None,
                                             None,
-                                        )
+                                        );
+                                        if let Ok(Some(key)) =
+                                            db.get_previous_session(most_recent_session)
+                                        {
+                                            r.add_header(
+                                                Header::from_bytes(
+                                                    &b"Previous-Session-Key"[..],
+                                                    format!("{:?}", key),
+                                                )
+                                                .unwrap(),
+                                            )
+                                        }
+                                        r
                                     }
                                     None => {
                                         // The rare case where there are no

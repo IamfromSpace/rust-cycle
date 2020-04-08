@@ -76,9 +76,13 @@ impl TelemetryDb {
     }
 
     pub fn get_most_recent_session(&self) -> sled::Result<Option<u64>> {
+        self.get_previous_session(u64::max_value())
+    }
+
+    pub fn get_previous_session(&self, key: u64) -> sled::Result<Option<u64>> {
         let x = self
             .db
-            .get_lt(self.serial_config.serialize(&u64::max_value()).unwrap())?;
+            .get_lt(self.serial_config.serialize(&key).unwrap())?;
         Ok(x.map(|(k, _)| self.decode_key(k).0))
     }
 
