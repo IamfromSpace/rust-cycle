@@ -1,6 +1,14 @@
 use crate::db_session_to_fit;
 use crate::telemetry_db::TelemetryDb;
-use std::{mem, sync::Arc, thread, thread::JoinHandle, time::Duration};
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::digit1,
+    combinator::map,
+    sequence::{preceded, terminated},
+    IResult,
+};
+use std::{mem, str::FromStr, sync::Arc, thread, thread::JoinHandle, time::Duration};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 pub struct TelemetryServer {
@@ -32,54 +40,67 @@ impl TelemetryServer {
                         // TODO: Some sort of simple auth (maybe a random pin on
                         // device?)
                         // TODO: Handle more than just the latest
-                        let response = if request.url() == "/workouts/latest.fit" {
-                            if request.method() == &Method::Get {
-                                match db.get_most_recent_session().unwrap() {
-                                    Some(most_recent_session) => {
-                                        session = db_session_to_fit(&db, most_recent_session);
-                                        let mut r = Response::new(
-                                            StatusCode(200),
-                                            // TODO; Header for next most recent
-                                            vec![
-                                                Header::from_bytes(
-                                                    &b"Content-Type"[..],
-                                                    &b"application/vnd.ant.fit"[..],
+                        let response = match parse_url(request.url()) {
+                            Ok(url) => {
+                                if request.method() == &Method::Get {
+                                    let key = match url {
+                                        (_, UrlKey::Latest) => {
+                                            db.get_most_recent_session().unwrap()
+                                        }
+                                        (_, UrlKey::Key(k)) => Some(k),
+                                    };
+                                    match key {
+                                        Some(requested_session) => {
+                                            session = db_session_to_fit(&db, requested_session);
+                                            let mut r = Response::new(
+                                                StatusCode(200),
+                                                // TODO; Header for next most recent
+                                                vec![
+                                                    Header::from_bytes(
+                                                        &b"Content-Type"[..],
+                                                        &b"application/vnd.ant.fit"[..],
+                                                    )
+                                                    .unwrap(),
+                                                    Header::from_bytes(
+                                                        &b"Session-Key"[..],
+                                                        format!("{:?}", requested_session),
+                                                    )
+                                                    .unwrap(),
+                                                ],
+                                                &session[..],
+                                                None,
+                                                None,
+                                            );
+                                            if let Ok(Some(key)) =
+                                                db.get_previous_session(requested_session)
+                                            {
+                                                r.add_header(
+                                                    Header::from_bytes(
+                                                        &b"Previous-Session-Key"[..],
+                                                        format!("{:?}", key),
+                                                    )
+                                                    .unwrap(),
                                                 )
-                                                .unwrap(),
-                                                Header::from_bytes(
-                                                    &b"Session-Key"[..],
-                                                    format!("{:?}", most_recent_session),
-                                                )
-                                                .unwrap(),
-                                            ],
-                                            &session[..],
-                                            None,
-                                            None,
-                                        );
-                                        if let Ok(Some(key)) =
-                                            db.get_previous_session(most_recent_session)
-                                        {
-                                            r.add_header(
-                                                Header::from_bytes(
-                                                    &b"Previous-Session-Key"[..],
-                                                    format!("{:?}", key),
-                                                )
-                                                .unwrap(),
+                                            }
+                                            r
+                                        }
+                                        None => {
+                                            // The rare case where there are no
+                                            // recorded workouts yet
+                                            Response::new(
+                                                StatusCode(404),
+                                                vec![],
+                                                &[][..],
+                                                None,
+                                                None,
                                             )
                                         }
-                                        r
                                     }
-                                    None => {
-                                        // The rare case where there are no
-                                        // recorded workouts yet
-                                        Response::new(StatusCode(404), vec![], &[][..], None, None)
-                                    }
+                                } else {
+                                    Response::new(StatusCode(405), vec![], &[][..], None, None)
                                 }
-                            } else {
-                                Response::new(StatusCode(405), vec![], &[][..], None, None)
                             }
-                        } else {
-                            Response::new(StatusCode(404), vec![], &[][..], None, None)
+                            Err(_) => Response::new(StatusCode(404), vec![], &[][..], None, None),
                         };
                         request.respond(response).unwrap();
                     }
@@ -100,5 +121,44 @@ impl Drop for TelemetryServer {
         if let Some(jh) = mem::replace(&mut self.join_handle, None) {
             jh.join().unwrap();
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum UrlKey {
+    Latest,
+    Key(u64),
+}
+
+// TODO: Terminate
+// TODO: This is a bit silly not to first put this through a standard URL parser
+// that would first break it into components (which _then_ could be more
+// thoroughly parsed).
+fn parse_url(i: &str) -> IResult<&str, UrlKey> {
+    terminated(
+        preceded(
+            tag("/workouts/"),
+            alt((
+                map(tag("latest"), |_| UrlKey::Latest),
+                map(digit1, |s| UrlKey::Key(u64::from_str(s).unwrap())),
+            )),
+        ),
+        tag(".fit"),
+    )(i)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_url;
+    use super::UrlKey;
+
+    #[test]
+    fn parse_url_latest() {
+        assert_eq!(parse_url("/workouts/latest.fit"), Ok(("", UrlKey::Latest)))
+    }
+
+    #[test]
+    fn parse_url_key() {
+        assert_eq!(parse_url("/workouts/1234.fit"), Ok(("", UrlKey::Key(1234))))
     }
 }
