@@ -83,6 +83,7 @@ pub fn main() {
                         Node((
                             "Fixed".to_string(),
                             vec![
+                                Leaf(NotExit("165W")),
                                 Leaf(NotExit("170W")),
                                 Leaf(NotExit("175W")),
                                 Leaf(NotExit("180W")),
@@ -127,6 +128,7 @@ pub fn main() {
         let (use_hr, use_cadence, location) = match workout_name {
             "100W" => (false, false, Location::Indoor(single_value(100))),
             "Outdoor" => (true, true, Location::Outdoor),
+            "165W" => (true, true, Location::Indoor(single_value(165))),
             "170W" => (true, true, Location::Indoor(single_value(170))),
             "175W" => (true, true, Location::Indoor(single_value(175))),
             "180W" => (true, true, Location::Indoor(single_value(180))),
