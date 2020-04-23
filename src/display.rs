@@ -9,7 +9,8 @@ use embedded_graphics::{
     geometry,
     geometry::Size,
     pixelcolor::BinaryColor,
-    style::TextStyleBuilder,
+    primitives::{rectangle::Rectangle, Primitive},
+    style::{PrimitiveStyleBuilder, TextStyleBuilder},
     DrawTarget,
 };
 use std::time::{Duration, Instant};
@@ -259,6 +260,15 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         )
         .into_styled(style_large)
         .draw(target)?;
+
+        Rectangle::new(geometry::Point::new(187, 3), geometry::Point::new(193, 9))
+            .into_styled(
+                PrimitiveStyleBuilder::new()
+                    .fill_color(BinaryColor::On)
+                    .stroke_width(0)
+                    .build(),
+            )
+            .draw(target)?;
 
         Ok(())
     }
