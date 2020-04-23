@@ -307,17 +307,17 @@ impl<'a, 'b> Drawable<BinaryColor> for OptionDisplay<'a, 'b> {
             .build();
 
         for i in 0..self.0.len() {
-            let option_num = i + 2;
+            let option_num = i + 1;
             Text::new(
                 &format!("{}: {}", option_num, (self.0)[i]),
-                geometry::Point::new(10, (i as i32) * 16 + 10),
+                geometry::Point::new(10, (i as i32) * 16 + 2 + 16 + 4),
             )
             .into_styled(style_large)
             .draw(target)?;
 
             Text::new(
                 &format!("{}", option_num),
-                geometry::Point::new(28 + (i as i32) * 37, target.size().height as i32 - 16),
+                geometry::Point::new(42 + (i as i32) * 37, 2),
             )
             .into_styled(style_large)
             .draw(target)?;

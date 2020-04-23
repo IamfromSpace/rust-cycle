@@ -403,17 +403,18 @@ fn selection<O: std::fmt::Display + Clone>(
     buttons: &mut buttons::Buttons,
     options: &Vec<O>,
 ) -> O {
-    if options.len() < 1 || options.len() > 4 {
+    if options.len() < 1 || options.len() > 5 {
         panic!("Unsupported selection length!");
     }
 
     let choice = Arc::new(Mutex::new(None));
     use buttons::Button;
     let bs = vec![
-        Button::ButtonB,
-        Button::ButtonC,
-        Button::ButtonD,
         Button::ButtonE,
+        Button::ButtonD,
+        Button::ButtonC,
+        Button::ButtonB,
+        Button::ButtonA,
     ];
 
     for i in 0..options.len() {
