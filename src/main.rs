@@ -7,6 +7,7 @@ mod gps;
 mod inky_phat;
 #[cfg(feature = "simulator")]
 mod inky_phat_simulator;
+mod memory_lcd;
 mod peripherals;
 mod telemetry_db;
 mod telemetry_server;
