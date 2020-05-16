@@ -17,6 +17,10 @@ pub struct FitRecord {
     pub longitude: Option<f64>,
     // GPS Alitude
     pub altitude: Option<f32>,
+    // Cumulative distance traveled in meters
+    pub distance: Option<f64>,
+    // Instantaneous speed in meters/s
+    pub speed: Option<f32>,
 }
 
 fn make_header(length: usize) -> Vec<u8> {
@@ -44,6 +48,7 @@ fn make_header(length: usize) -> Vec<u8> {
 fn record_to_bytes(record: &FitRecord) -> Vec<u8> {
     let ts = record.seconds_since_unix_epoch - 631065600;
     let mut bytes = vec![
+        // Type 0 (we only ever define type 0, and just continually change the definition)
         0,
         // Time
         ts as u8 & 0xff,
@@ -80,6 +85,16 @@ fn record_to_bytes(record: &FitRecord) -> Vec<u8> {
         bytes.push(c);
     }
 
+    if let Some(d) = record.distance {
+        let x = u32::to_le_bytes((100.0 * d) as u32);
+        bytes.extend(&x);
+    }
+
+    if let Some(s) = record.speed {
+        let x = u16::to_le_bytes((1000.0 * s) as u16);
+        bytes.extend(&x);
+    }
+
     bytes
 }
 
@@ -94,7 +109,9 @@ fn record_def(record: &FitRecord) -> Vec<u8> {
         } else {
             0
         }
-        + if let Some(_) = record.cadence { 1 } else { 0 };
+        + if let Some(_) = record.cadence { 1 } else { 0 }
+        + if let Some(_) = record.distance { 1 } else { 0 }
+        + if let Some(_) = record.speed { 1 } else { 0 };
 
     let mut bytes = vec![
         // Field definition for message type 0
@@ -138,6 +155,14 @@ fn record_def(record: &FitRecord) -> Vec<u8> {
         // Cadence (field definition number, byte count, default type (u8))
         4, 1, 2,
     ];
+    let distance_def = vec![
+        // distance (field definition number, byte count, default type (u32))
+        5, 4, 0x86,
+    ];
+    let speed_def = vec![
+        // Speed (field definition number, byte count, default type (u16))
+        6, 2, 0x84,
+    ];
 
     if let Some(_) = record.latitude {
         bytes.extend(lat_def);
@@ -161,6 +186,14 @@ fn record_def(record: &FitRecord) -> Vec<u8> {
 
     if let Some(_) = record.cadence {
         bytes.extend(cadence_def);
+    }
+
+    if let Some(_) = record.distance {
+        bytes.extend(distance_def);
+    }
+
+    if let Some(_) = record.speed {
+        bytes.extend(speed_def);
     }
 
     bytes
@@ -253,6 +286,8 @@ mod tests {
                 latitude: None,
                 longitude: None,
                 altitude: None,
+                distance: None,
+                speed: None,
             })),
         );
     }
@@ -275,6 +310,8 @@ mod tests {
                     latitude: None,
                     longitude: None,
                     altitude: None,
+                    distance: None,
+                    speed: None,
                 },
                 FitRecord {
                     seconds_since_unix_epoch: 1583801577,
@@ -284,6 +321,8 @@ mod tests {
                     latitude: None,
                     longitude: None,
                     altitude: None,
+                    distance: None,
+                    speed: None,
                 }
             )),
         );
@@ -310,6 +349,8 @@ mod tests {
                     latitude: None,
                     longitude: None,
                     altitude: None,
+                    distance: None,
+                    speed: None,
                 },
                 FitRecord {
                     seconds_since_unix_epoch: 1583801577,
@@ -318,7 +359,9 @@ mod tests {
                     cadence: None,
                     latitude: Some(45.48707197420299),
                     longitude: Some(-122.4767913389951),
-                    altitude: Some(81.79999999999995)
+                    altitude: Some(81.79999999999995),
+                    distance: None,
+                    speed: None,
                 }
             )),
         );
@@ -340,6 +383,8 @@ mod tests {
                 latitude: None,
                 longitude: None,
                 altitude: None,
+                distance: None,
+                speed: None,
             })),
         );
     }
@@ -360,6 +405,8 @@ mod tests {
                 latitude: None,
                 longitude: None,
                 altitude: None,
+                distance: None,
+                speed: None,
             })),
         );
     }
@@ -380,6 +427,8 @@ mod tests {
                 latitude: None,
                 longitude: None,
                 altitude: None,
+                distance: None,
+                speed: None,
             })),
         );
     }
@@ -400,7 +449,9 @@ mod tests {
                 cadence: None,
                 latitude: Some(45.48707197420299),
                 longitude: Some(-122.4767913389951),
-                altitude: Some(81.79999999999995)
+                altitude: Some(81.79999999999995),
+                distance: None,
+                speed: None,
             })),
         );
     }
@@ -422,7 +473,37 @@ mod tests {
                 cadence: Some(91),
                 latitude: Some(45.48707197420299),
                 longitude: Some(-122.4767913389951),
-                altitude: Some(81.79999999999995)
+                altitude: Some(81.79999999999995),
+                distance: None,
+                speed: None,
+            })),
+        );
+    }
+
+    #[test]
+    fn to_file_for_speed_and_distance_only() {
+        assert_eq!(
+            vec!(
+                0x0c, 0x20, 0xeb, 0x07, 0x1a, 0x00, 0x00, 0x00, 0x2e, 0x46, 0x49, 0x54, 0x40, 0x00,
+                0x00, 0x14, 0x00, 0x03, 253, 0x04, 0x86, //
+                0x05, 0x04, 0x86, // dist def
+                0x06, 0x02, 0x84, // speed def
+                0,    // record type
+                0xe8, 0x98, 0xc9, 0x38, // time data
+                0xa0, 0x86, 0x01, 0x00, // dist data
+                0x70, 0x17, // speed data
+                0xf3, 0x74 // crc
+            ),
+            to_file(&vec!(FitRecord {
+                seconds_since_unix_epoch: 1583801576,
+                power: None,
+                heart_rate: None,
+                cadence: None,
+                latitude: None,
+                longitude: None,
+                altitude: None,
+                distance: Some(1000.0), // 1km
+                speed: Some(6.0),       // 21.6 km
             })),
         );
     }
