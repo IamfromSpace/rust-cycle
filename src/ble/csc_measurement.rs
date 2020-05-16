@@ -75,16 +75,13 @@ fn checked_rpm_and_new_count_rev_data(
         };
 
         // This takes a _long_ time to overflow, but it can happen
-        let total_revolutions = if b.revolution_count > a.revolution_count {
+        let new_revolutions = if b.revolution_count > a.revolution_count {
             b.revolution_count - a.revolution_count
         } else {
             0x10000 + b.revolution_count - a.revolution_count
         };
 
-        Some((
-            total_revolutions as f64 * 60.0 / duration,
-            total_revolutions,
-        ))
+        Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
     }
 }
 
