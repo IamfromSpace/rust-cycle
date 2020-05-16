@@ -164,8 +164,4 @@ impl DrawTarget<BinaryColor> for MemoryLcd {
     fn size(&self) -> Size {
         Size::new(WIDTH, HEIGHT)
     }
-
-    fn clear(&mut self, _color: BinaryColor) -> Result<(), Self::Error> {
-        panic!()
-    }
 }
