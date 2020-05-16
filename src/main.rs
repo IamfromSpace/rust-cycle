@@ -437,9 +437,11 @@ fn selection<O: std::fmt::Display + Clone>(
     display.render_options(&strings.iter().map(|x| &**x).collect());
 
     let index = loop {
-        let or = choice.lock().unwrap();
-        if let Some(r) = *or {
-            break r;
+        {
+            let or = choice.lock().unwrap();
+            if let Some(r) = *or {
+                break r;
+            }
         }
         thread::sleep(Duration::from_millis(15));
     };
