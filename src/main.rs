@@ -8,6 +8,8 @@ mod inky_phat;
 #[cfg(feature = "simulator")]
 mod inky_phat_simulator;
 mod memory_lcd;
+#[cfg(feature = "simulator")]
+mod memory_lcd_simulator;
 mod peripherals;
 mod telemetry_db;
 mod telemetry_server;
@@ -356,8 +358,11 @@ pub fn main() {
                     break;
                 }
             };
-            let mut display = display_mutex_for_render.lock().unwrap();
-            display.render();
+            {
+                let mut display = display_mutex_for_render.lock().unwrap();
+                display.render();
+            }
+            thread::sleep(Duration::from_millis(100));
         });
 
         if let Some((mut wh, _)) = kickr_and_handle {

@@ -1,7 +1,7 @@
 #[cfg(not(feature = "simulator"))]
-use crate::inky_phat::InkyPhat;
+use crate::memory_lcd::MemoryLcd;
 #[cfg(feature = "simulator")]
-use crate::inky_phat_simulator::InkyPhat;
+use crate::memory_lcd_simulator::MemoryLcd;
 use chrono::Local;
 use embedded_graphics::{
     drawable::Drawable,
@@ -15,23 +15,18 @@ use embedded_graphics::{
 };
 use std::time::{Duration, Instant};
 
-// TODO: Our InkyPhat is not Send when this is in simulator mode not exactly
-// sure how to address this.
-#[cfg(feature = "simulator")]
-unsafe impl Send for Display {}
-
 pub struct Display {
-    inky_phat: InkyPhat,
+    memory_lcd: MemoryLcd,
     workout: WorkoutDisplay,
     has_rendered: bool,
 }
 
 impl Display {
     pub fn new(start_instant: Instant) -> Display {
-        let inky_phat = InkyPhat::new();
+        let memory_lcd = MemoryLcd::new().unwrap();
         let workout = WorkoutDisplay::new(start_instant);
         Display {
-            inky_phat,
+            memory_lcd,
             workout,
             has_rendered: false,
         }
@@ -62,30 +57,30 @@ impl Display {
     }
 
     pub fn render_msg(&mut self, s: &str) {
-        self.inky_phat.clear(BinaryColor::Off).unwrap();
-        MsgDisplay::new(s).draw(&mut self.inky_phat).unwrap();
-        self.inky_phat.update();
+        self.memory_lcd.clear(BinaryColor::Off).unwrap();
+        self.has_rendered = false;
+        MsgDisplay::new(s).draw(&mut self.memory_lcd).unwrap();
     }
 
     pub fn render_options(&mut self, options: &Vec<&str>) {
-        self.inky_phat.clear(BinaryColor::Off).unwrap();
+        // TODO: This also flickers, but stince it doesn't always
+        // over draw like rendering does, it not safe to use the
+        // same has_rendered approach.
+        self.memory_lcd.clear(BinaryColor::Off).unwrap();
+        self.has_rendered = false;
         OptionDisplay::new(&options[..])
-            .draw(&mut self.inky_phat)
+            .draw(&mut self.memory_lcd)
             .unwrap();
-        self.inky_phat.update();
     }
 
     pub fn render(&mut self) {
-        self.inky_phat.clear(BinaryColor::Off).unwrap();
-        self.workout.clone().draw(&mut self.inky_phat).unwrap();
-        // TODO: This seems a bit silly, but otherwise the display starts out
-        // quite faint.
-        if self.has_rendered {
-            self.inky_phat.update_fast();
-        } else {
+        // We only clear the screen if it's been drawing other stuff.
+        // This prevents flashing or the need to frame sync.
+        if !self.has_rendered {
+            self.memory_lcd.clear(BinaryColor::Off).unwrap();
             self.has_rendered = true;
-            self.inky_phat.update();
         }
+        self.workout.clone().draw(&mut self.memory_lcd).unwrap();
     }
 }
 
