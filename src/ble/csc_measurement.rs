@@ -61,7 +61,7 @@ pub fn checked_rpm_and_new_count(a: &CscMeasurement, b: &CscMeasurement) -> Opti
 }
 
 // TODO: How to better handle overflow when managing raw/decoded data
-pub fn checked_rpm_and_new_count_rev_data(
+fn checked_rpm_and_new_count_rev_data(
     a: &RevolutionData,
     b: &RevolutionData,
 ) -> Option<(f64, u32)> {
