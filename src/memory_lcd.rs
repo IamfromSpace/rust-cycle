@@ -78,13 +78,13 @@ impl MemoryLcd {
                     update(&mut cs_pin, vcom, &mut spi, &buffer).unwrap();
                 }
 
-                thread::sleep(Duration::from_millis(500));
-
                 // If the thread is the last owner of the Arc, then there are
                 // no more interested parties and we terminate
                 if Arc::strong_count(&running_for_thread) <= 1 {
                     break;
                 }
+
+                thread::sleep(Duration::from_millis(100));
             }
         }));
 
