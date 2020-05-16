@@ -54,7 +54,19 @@ pub fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
     }
 }
 
-pub fn checked_rpm_and_new_count(a: &CscMeasurement, b: &CscMeasurement) -> Option<(f64, u32)> {
+pub fn checked_wheel_rpm_and_new_count(
+    a: &CscMeasurement,
+    b: &CscMeasurement,
+) -> Option<(f64, u32)> {
+    let a = a.wheel.as_ref();
+    let b = b.wheel.as_ref();
+    crate::utils::lift_a2_option(a, b, checked_rpm_and_new_count_rev_data).and_then(|x| x)
+}
+
+pub fn checked_crank_rpm_and_new_count(
+    a: &CscMeasurement,
+    b: &CscMeasurement,
+) -> Option<(f64, u32)> {
     let a = a.crank.as_ref();
     let b = b.crank.as_ref();
     crate::utils::lift_a2_option(a, b, checked_rpm_and_new_count_rev_data).and_then(|x| x)
@@ -74,7 +86,9 @@ fn checked_rpm_and_new_count_rev_data(
             0b1000000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
         };
 
-        // This takes a _long_ time to overflow, but it can happen
+        // For cranks, this takes a _long_ time to overflow, but it can happen.
+        // For wheels, this is essentially impossible (>8.5M km ride), so this
+        // if condition will simply never occur.
         let new_revolutions = if b.revolution_count > a.revolution_count {
             b.revolution_count - a.revolution_count
         } else {
@@ -147,12 +161,12 @@ mod tests {
         );
     }
 
-    use super::checked_rpm_and_new_count;
+    use super::checked_crank_rpm_and_new_count;
     #[test]
     fn overflow_works() {
         assert_eq!(
             Some((95.10835913312694, 2)),
-            checked_rpm_and_new_count(
+            checked_crank_rpm_and_new_count(
                 &CscMeasurement {
                     wheel: None,
                     crank: Some(RevolutionData {

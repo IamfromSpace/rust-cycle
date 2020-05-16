@@ -17,7 +17,7 @@ mod utils;
 mod workout;
 
 use ble::{
-    csc_measurement::{checked_rpm_and_new_count, parse_csc_measurement, CscMeasurement},
+    csc_measurement::{checked_crank_rpm_and_new_count, parse_csc_measurement, CscMeasurement},
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
@@ -316,7 +316,7 @@ pub fn main() {
                 let csc_measure = parse_csc_measurement(&n.value);
                 let r = o_last_cadence_measure
                     .as_ref()
-                    .and_then(|a| checked_rpm_and_new_count(a, &csc_measure));
+                    .and_then(|a| checked_crank_rpm_and_new_count(a, &csc_measure));
                 if let Some((rpm, new_crank_count)) = r {
                     crank_count = crank_count + new_crank_count;
                     let mut display = display_mutex_cadence.lock().unwrap();
@@ -569,7 +569,7 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                 telemetry_db::Notification::Ble((cadence::MEASURE_UUID, v)) => {
                     let csc_measurement = parse_csc_measurement(&v);
                     let o_rpm = last_csc_measurement
-                        .and_then(|a| checked_rpm_and_new_count(&a, &csc_measurement))
+                        .and_then(|a| checked_crank_rpm_and_new_count(&a, &csc_measurement))
                         .map(|x| x.0);
                     if let Some(rpm) = o_rpm {
                         r.cadence = Some(rpm as u8);
