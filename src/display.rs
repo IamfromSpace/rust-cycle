@@ -70,6 +70,8 @@ impl Display {
         self.memory_lcd.clear(BinaryColor::Off).unwrap();
         self.has_rendered = false;
         MsgDisplay::new(s).draw(&mut self.memory_lcd).unwrap();
+        #[cfg(feature = "simulator")]
+        self.memory_lcd.update();
     }
 
     pub fn render_options(&mut self, options: &Vec<&str>) {
@@ -81,6 +83,8 @@ impl Display {
         OptionDisplay::new(&options[..])
             .draw(&mut self.memory_lcd)
             .unwrap();
+        #[cfg(feature = "simulator")]
+        self.memory_lcd.update();
     }
 
     pub fn render(&mut self) {
@@ -91,6 +95,10 @@ impl Display {
             self.has_rendered = true;
         }
         self.workout.clone().draw(&mut self.memory_lcd).unwrap();
+        // TODO: Make the simulator act more like the real deal, and don't
+        // require a manual screen refresh.
+        #[cfg(feature = "simulator")]
+        self.memory_lcd.update();
     }
 }
 
