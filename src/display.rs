@@ -11,9 +11,11 @@ use embedded_graphics::{
     pixelcolor::BinaryColor,
     primitives::{rectangle::Rectangle, Primitive},
     style::{PrimitiveStyleBuilder, TextStyleBuilder},
+    transform::Transform,
     DrawTarget,
 };
 use std::time::{Duration, Instant};
+use xi_unicode::LineBreakIterator;
 
 pub struct Display {
     memory_lcd: MemoryLcd,
@@ -336,20 +338,60 @@ impl<'a> MsgDisplay<'a> {
 
 impl<'a> Drawable<BinaryColor> for MsgDisplay<'a> {
     fn draw<D: DrawTarget<BinaryColor>>(self, target: &mut D) -> Result<(), D::Error> {
+        // TODO: Most of this logic is about text wrapping, which should
+        // probably be abstracted.
         let style_large = TextStyleBuilder::new(Font8x16)
             .text_color(BinaryColor::On)
             .background_color(BinaryColor::Off)
             .build();
 
         let Size { height, width } = target.size();
+        let unpadded_width = width - 12;
 
-        // TODO: Wrap Text
-        let x = (width as i32 - (8 * (self.0.len() as i32))) / 2;
-        let y = ((height as i32) - 16) / 2;
+        // TODO: Ideally we don't push the vector, we build one single styled
+        // thing (via chain), translate it, then draw it.
+        // We cannot translate, however, without iterating through to know the
+        // totally number of lines (for vertical centering).
+        let mut ts = vec![];
+        let mut line_count = 0;
+        let mut line_start = 0;
+        let mut last_bp = 0;
+        let mut was_hard_break = false;
+        for (bp, is_hard_break) in LineBreakIterator::new(&self.0) {
+            if (bp - line_start) * 8 > unpadded_width as usize || was_hard_break {
+                // TODO: Trailing spaces should not count towards centering
+                let x = (width as i32 - (8 * ((last_bp - line_start) as i32))) / 2;
+                ts.push(
+                    Text::new(
+                        &self.0[line_start..last_bp],
+                        geometry::Point::new(x, line_count * 16),
+                    )
+                    .into_styled(style_large),
+                );
+                line_count += 1;
+                line_start = last_bp;
+            }
+            last_bp = bp;
+            was_hard_break = is_hard_break;
+        }
 
-        Text::new(&self.0, geometry::Point::new(x, y))
-            .into_styled(style_large)
-            .draw(target)
+        // TODO: This should just be part of the iterator, but it does have some
+        // subtle differences that make an elegeant answer hard to find.
+        let x = (width as i32 - (8 * ((self.0.len() - line_start) as i32))) / 2;
+        ts.push(
+            Text::new(
+                &self.0[line_start..last_bp],
+                geometry::Point::new(x, line_count * 16),
+            )
+            .into_styled(style_large),
+        );
+        line_count += 1;
+
+        let y = ((height as i32) - 16 * line_count) / 2;
+
+        ts.into_iter()
+            .map(|mut x| x.translate_mut(geometry::Point::new(0, y)).draw(target))
+            .collect()
     }
 }
 

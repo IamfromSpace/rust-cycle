@@ -18,6 +18,7 @@ embedded-graphics = "0.6"
 embedded-graphics-simulator = { version = "0.2", optional = true }
 tiny_http = "0.6"
 nom = "5.1"
+xi-unicode = "0.2"
 
 [features]
 simulator =  ["embedded-graphics-simulator"]
