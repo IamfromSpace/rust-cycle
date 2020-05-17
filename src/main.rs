@@ -17,6 +17,7 @@ mod utils;
 mod workout;
 
 use ble::{
+    csc_measurement,
     csc_measurement::{
         checked_crank_rpm_and_new_count, checked_wheel_rpm_and_new_count, parse_csc_measurement,
         CscMeasurement,
@@ -26,7 +27,7 @@ use ble::{
 };
 use btleplug::api::Central;
 use btleplug::bluez::manager::Manager;
-use peripherals::{cadence, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr};
+use peripherals::{cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr};
 use std::collections::BTreeSet;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -575,7 +576,7 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                     r.power = Some(p);
                     r
                 }
-                telemetry_db::Notification::Ble((cadence::MEASURE_UUID, v)) => {
+                telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
                     // TODO: Clean up cloning here that supports crank and wheel
                     // data coming from different sources :/
                     // We can't tell if this reading support just one or both,

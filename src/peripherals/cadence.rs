@@ -1,8 +1,7 @@
-use btleplug::api::{Central, CentralEvent, NotificationHandler, Peripheral, UUID};
+use crate::ble::csc_measurement::MEASURE_UUID;
+use btleplug::api::{Central, CentralEvent, NotificationHandler, Peripheral};
 use btleplug::Result;
 use std::{marker::PhantomData, thread, time::Duration};
-
-pub const MEASURE_UUID: UUID = UUID::B16(0x2A5B);
 
 pub struct Cadence<C: Central<P>, P: Peripheral> {
     peripheral: P,

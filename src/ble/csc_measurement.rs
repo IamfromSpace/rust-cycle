@@ -1,4 +1,7 @@
 use crate::ble::revolution_data::RevolutionData;
+use btleplug::api::UUID;
+
+pub const MEASURE_UUID: UUID = UUID::B16(0x2A5B);
 
 // A Struct that does not care about bit compression
 #[derive(Debug, PartialEq, Clone)]
