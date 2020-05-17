@@ -10,6 +10,12 @@ pub struct TelemetryDb {
     serial_config: bincode::Config,
 }
 
+// TODO: elapsed supports resolution of a nanosecond (but this doesn't mean
+// it'll be fully utilized), so collisions between devices that use the same
+// UUID should be rare, but are theoretically possible.
+// For characteristics like CSC (Cycling Speed and Cadence), it's reasonably
+// likely that you have two devices using it--one for speed and the other for
+// cadence.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Notification {
     Ble((UUID, Vec<u8>)),

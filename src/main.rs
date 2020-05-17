@@ -17,7 +17,10 @@ mod utils;
 mod workout;
 
 use ble::{
-    csc_measurement::{checked_crank_rpm_and_new_count, parse_csc_measurement, CscMeasurement},
+    csc_measurement::{
+        checked_crank_rpm_and_new_count, checked_wheel_rpm_and_new_count, parse_csc_measurement,
+        CscMeasurement,
+    },
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
@@ -30,6 +33,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use workout::{create_big_start_interval, ramp_test, single_value};
+
+// TODO:  Allow calibration
+// In meters
+const WHEEL_CIRCUMFERENCE: f32 = 2.136;
 
 #[derive(Clone)]
 enum OrExit<T> {
@@ -515,7 +522,9 @@ fn or_crash_with_msg<T>(
 
 fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8> {
     let mut last_power: Option<u16> = None;
-    let mut last_csc_measurement: Option<CscMeasurement> = None;
+    let mut last_cadence_csc_measurement: Option<CscMeasurement> = None;
+    let mut last_wheel_csc_measurement: Option<CscMeasurement> = None;
+    let mut wheel_count = 0;
     let mut record: Option<fit::FitRecord> = None;
     let mut records = Vec::new();
     let empty_record = |t| fit::FitRecord {
@@ -567,14 +576,28 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                     r
                 }
                 telemetry_db::Notification::Ble((cadence::MEASURE_UUID, v)) => {
+                    // TODO: Clean up cloning here that supports crank and wheel
+                    // data coming from different sources :/
+                    // We can't tell if this reading support just one or both,
+                    // given that the CSC UUID/characterstic supports both.
                     let csc_measurement = parse_csc_measurement(&v);
-                    let o_rpm = last_csc_measurement
+                    let o_crank_rpm = last_cadence_csc_measurement
+                        .clone()
                         .and_then(|a| checked_crank_rpm_and_new_count(&a, &csc_measurement))
                         .map(|x| x.0);
-                    if let Some(rpm) = o_rpm {
-                        r.cadence = Some(rpm as u8);
+                    let o_wheel = last_wheel_csc_measurement
+                        .clone()
+                        .and_then(|a| checked_wheel_rpm_and_new_count(&a, &csc_measurement));
+                    if let Some(crank_rpm) = o_crank_rpm {
+                        r.cadence = Some(crank_rpm as u8);
+                        last_cadence_csc_measurement = Some(csc_measurement.clone());
                     }
-                    last_csc_measurement = Some(csc_measurement);
+                    if let Some((wheel_rpm, new_wheel_count)) = o_wheel {
+                        r.speed = Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0);
+                        wheel_count += new_wheel_count;
+                        r.distance = Some(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                        last_wheel_csc_measurement = Some(csc_measurement.clone());
+                    }
                     r
                 }
                 _ => {
