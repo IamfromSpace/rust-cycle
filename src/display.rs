@@ -52,6 +52,14 @@ impl Display {
         self.workout.update_crank_count(crank_count);
     }
 
+    pub fn update_speed(&mut self, speed: Option<f32>) {
+        self.workout.update_speed(speed);
+    }
+
+    pub fn update_distance(&mut self, distance: f64) {
+        self.workout.update_distance(distance);
+    }
+
     pub fn set_gps_fix(&mut self, has_fix: bool) {
         self.workout.set_gps_fix(has_fix);
     }
@@ -91,6 +99,8 @@ pub struct WorkoutDisplay {
     heart_rate: Option<(u8, Instant)>,
     external_energy: f64,
     crank_count: Option<u32>,
+    speed: Option<(f32, Instant)>,
+    distance: f64,
     gps_fix: Option<(bool, Instant)>,
     start_instant: Instant,
 }
@@ -103,6 +113,8 @@ impl WorkoutDisplay {
             heart_rate: None,
             external_energy: 0.0,
             crank_count: None,
+            speed: None,
+            distance: 0.0,
             gps_fix: None,
             start_instant,
         }
@@ -128,6 +140,14 @@ impl WorkoutDisplay {
         self.crank_count = Some(crank_count);
     }
 
+    pub fn update_speed(&mut self, speed: Option<f32>) {
+        self.speed = speed.map(|x| (x, Instant::now()));
+    }
+
+    pub fn update_distance(&mut self, distance: f64) {
+        self.distance = distance;
+    }
+
     pub fn set_gps_fix(&mut self, has_fix: bool) {
         self.gps_fix = Some((has_fix, Instant::now()));
     }
@@ -149,6 +169,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         let power = self.power.and_then(none_if_stale);
         let cadence = self.cadence.and_then(none_if_stale);
         let heart_rate = self.heart_rate.and_then(none_if_stale);
+        let speed = self.speed.and_then(none_if_stale);
         let gps_fix = self.gps_fix.and_then(none_if_stale);
 
         Text::new("POW (W)", geometry::Point::new(8, 8))
@@ -204,6 +225,42 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 ) as u16
             ),
             geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new(
+            "V (km/h)",
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2),
+        )
+        .into_styled(style_tiny)
+        .draw(target)?;
+
+        Text::new(
+            &speed.map_or("---".to_string(), |x| {
+                format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
+            }),
+            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        Text::new(
+            "D (km)",
+            geometry::Point::new(
+                8,
+                8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2,
+            ),
+        )
+        .into_styled(style_tiny)
+        .draw(target)?;
+
+        Text::new(
+            &format!("{:.2}", self.distance / 1000.0),
+            geometry::Point::new(
+                8,
+                8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6,
+            ),
         )
         .into_styled(style_large)
         .draw(target)?;
