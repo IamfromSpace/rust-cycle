@@ -77,6 +77,8 @@ pub fn main() {
         let mut display = display::Display::new(Instant::now());
 
         // Create our Buttons
+        // TODO: Simulate these, so we can run everything on desktop in
+        // simulator mode.
         let mut buttons = buttons::Buttons::new();
 
         // TODO: Select Enums
