@@ -631,12 +631,18 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                         .and_then(|a| checked_wheel_rpm_and_new_count(&a, &csc_measurement));
                     if let Some(crank_rpm) = o_crank_rpm {
                         r.cadence = Some(crank_rpm as u8);
-                        last_cadence_csc_measurement = Some(csc_measurement.clone());
                     }
                     if let Some((wheel_rpm, new_wheel_count)) = o_wheel {
                         r.speed = Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0);
                         wheel_count += new_wheel_count;
                         r.distance = Some(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                    }
+                    // We want to consider both the cases where we have
+                    // individual devices and one that has both measures.
+                    if csc_measurement.crank.is_some() {
+                        last_cadence_csc_measurement = Some(csc_measurement.clone());
+                    }
+                    if csc_measurement.wheel.is_some() {
                         last_wheel_csc_measurement = Some(csc_measurement.clone());
                     }
                     r
