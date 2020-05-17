@@ -27,7 +27,7 @@ use ble::{
 };
 use btleplug::api::Central;
 use btleplug::bluez::manager::Manager;
-use peripherals::{cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr};
+use peripherals::{cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed};
 use std::collections::BTreeSet;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -218,6 +218,46 @@ pub fn main() {
             "Couldn't setup bluetooth!",
         );
         lock_and_show(&display_mutex, &"Connecting to Devices.");
+
+        // We need to bind to keep our speed peripheral until the end of the scope
+        let _speed = if let Location::Outdoor = location {
+            // Connect to Speed meter and print its raw notifications
+            let speed_measure = or_crash_with_msg(
+                &display_mutex,
+                Speed::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to Speed Measure!",
+            );
+
+            let mut o_last_speed_measure: Option<CscMeasurement> = None;
+            let mut wheel_count = 0;
+            let db_speed_measure = db.clone();
+            let display_mutex_speed = display_mutex.clone();
+            speed_measure.on_notification(Box::new(move |n| {
+                let elapsed = start.elapsed();
+                let csc_measure = parse_csc_measurement(&n.value);
+                let r = o_last_speed_measure
+                    .as_ref()
+                    .and_then(|a| checked_wheel_rpm_and_new_count(a, &csc_measure));
+                if let Some((wheel_rpm, new_wheel_count)) = r {
+                    wheel_count = wheel_count + new_wheel_count;
+                    let mut display = display_mutex_speed.lock().unwrap();
+                    display.update_speed(Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0));
+                    display.update_distance(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                }
+                o_last_speed_measure = Some(csc_measure);
+                db_speed_measure
+                    .insert(
+                        session_key,
+                        elapsed,
+                        telemetry_db::Notification::Ble((n.uuid, n.value)),
+                    )
+                    .unwrap();
+            }));
+            lock_and_show(&display_mutex, &"Setup Complete for Speed Monitor");
+            Some(speed_measure)
+        } else {
+            None
+        };
 
         // We need to bind to keep our hrm until the end of the scope
         let _hrm = if use_hr {
