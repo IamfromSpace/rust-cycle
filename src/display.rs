@@ -312,6 +312,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         .into_styled(style_tiny)
         .draw(target)?;
 
+        // TODO: Since some text is longer than others, this draws funny on occasion (ex. FIXFIX
+        // after getting a fix after having not had one.
         Text::new(
             &match gps_fix {
                 None => "NO GPS",
