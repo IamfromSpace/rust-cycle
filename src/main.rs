@@ -37,7 +37,7 @@ use workout::{create_big_start_interval, ramp_test, single_value};
 
 // TODO:  Allow calibration
 // In meters
-const WHEEL_CIRCUMFERENCE: f32 = 2.136;
+const WHEEL_CIRCUMFERENCE: f32 = 2.105;
 
 #[derive(Clone)]
 enum OrExit<T> {
