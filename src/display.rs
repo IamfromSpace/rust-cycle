@@ -228,7 +228,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         Text::new(
             &format!(
                 "{:04}",
-                // We just assume 80rpm to get crank revolutions for now
+                // We assume 80rpm unless otherwise known
                 metabolic_cost_in_kcal(
                     self.external_energy,
                     self.crank_count.unwrap_or((elapsed_secs * 80 / 60) as u32)
