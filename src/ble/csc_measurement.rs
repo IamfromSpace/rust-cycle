@@ -123,7 +123,9 @@ fn checked_wheel_rpm_and_new_count_rev_data(
             let new_revolutions = b.revolution_count - a_revolution_count;
             Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
         } else {
-            None
+            // This indicates a reset, so we instead assume the two events are not connected and
+            // there is no previous.
+            checked_wheel_rpm_and_new_count_rev_data(None, b)
         }
     }
 }
