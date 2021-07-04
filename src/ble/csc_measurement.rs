@@ -58,12 +58,19 @@ pub fn parse_csc_measurement(data: &Vec<u8>) -> CscMeasurement {
 }
 
 pub fn checked_wheel_rpm_and_new_count(
-    a: &CscMeasurement,
+    a: Option<&CscMeasurement>,
     b: &CscMeasurement,
 ) -> Option<(f64, u32)> {
-    let a = a.wheel.as_ref();
-    let b = b.wheel.as_ref();
-    crate::utils::lift_a2_option(a, b, checked_rpm_and_new_count_rev_data).and_then(|x| x)
+    // If we don't have previous measurement, then continue, but if we have a previous, but it
+    // doesn't have wheel data, then we abort.
+    match (a, b.wheel.as_ref()) {
+        (_, None) => None,
+        (None, Some(b)) => checked_wheel_rpm_and_new_count_rev_data(None, b),
+        (Some(a), Some(b)) => match a.wheel.as_ref() {
+            None => None,
+            Some(a) => checked_wheel_rpm_and_new_count_rev_data(Some(a), b),
+        },
+    }
 }
 
 pub fn checked_crank_rpm_and_new_count(
@@ -83,32 +90,11 @@ pub fn checked_crank_rpm_and_new_count(
 }
 
 // TODO: How to better handle overflow when managing raw/decoded data
-fn checked_rpm_and_new_count_rev_data(
-    a: &RevolutionData,
-    b: &RevolutionData,
-) -> Option<(f64, u32)> {
-    let duration = checked_duration(a, b);
-    if duration == 0.0 {
-        None
-    } else {
-        // For cranks, this takes a _long_ time to overflow, but it can happen.
-        // For wheels, this is essentially impossible (>8.5M km ride), so this
-        // if condition will simply never occur.
-        let new_revolutions = if b.revolution_count > a.revolution_count {
-            b.revolution_count - a.revolution_count
-        } else {
-            0x10000 + b.revolution_count - a.revolution_count
-        };
-
-        Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
-    }
-}
-
 fn checked_crank_rpm_and_new_count_rev_data(
     a: Option<&RevolutionData>,
     b: &RevolutionData,
 ) -> Option<(f64, u32)> {
-    let duration = checked_duration_o(a, b);
+    let duration = checked_duration(a, b);
     if duration == 0.0 {
         None
     } else {
@@ -123,15 +109,26 @@ fn checked_crank_rpm_and_new_count_rev_data(
     }
 }
 
-fn checked_duration(a: &RevolutionData, b: &RevolutionData) -> f64 {
-    if b.last_revolution_event_time > a.last_revolution_event_time {
-        b.last_revolution_event_time - a.last_revolution_event_time
+fn checked_wheel_rpm_and_new_count_rev_data(
+    a: Option<&RevolutionData>,
+    b: &RevolutionData,
+) -> Option<(f64, u32)> {
+    let duration = checked_duration(a, b);
+    if duration == 0.0 {
+        None
     } else {
-        0b1000000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
+        let a_revolution_count = a.map_or(0, |x| x.revolution_count);
+        // It's not really feasible for wheels to overflow, this is in the billions of meters.
+        if b.revolution_count > a_revolution_count {
+            let new_revolutions = b.revolution_count - a_revolution_count;
+            Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
+        } else {
+            None
+        }
     }
 }
 
-fn checked_duration_o(a: Option<&RevolutionData>, b: &RevolutionData) -> f64 {
+fn checked_duration(a: Option<&RevolutionData>, b: &RevolutionData) -> f64 {
     let a_last_revolution_event_time = a.map_or(0.0, |x| x.last_revolution_event_time);
     if b.last_revolution_event_time > a_last_revolution_event_time {
         b.last_revolution_event_time - a_last_revolution_event_time
