@@ -74,6 +74,10 @@ pub fn main() {
         let server = telemetry_server::TelemetryServer::new(db.clone());
 
         // Create Our Display
+        // TODO: Ideally this is a) the same instant as our `start` instant below b) actually a
+        // match to the real start time.  By setting the start instant here, it means that we're
+        // not displaying the length of the workout, but instead how long the display has been
+        // running.
         let mut display = display::Display::new(Instant::now());
 
         // Create our Buttons
