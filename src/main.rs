@@ -175,6 +175,11 @@ pub fn main() {
 
         // This won't fail unless the clock is before epoch, which sounds like a
         // bigger problem
+        // TODO: However, there's no guarantee that this value doesn't go _backwards_, which means
+        // sessions can be recorded out of order (this has happened).  We could use `max(now,
+        // last_session.key+1)`, but that means that one very late clock ruins the ability to
+        // determine when they were captured from the timestamp (at which point a monotonic counter
+        // makes as much or more sense).
         let session_key = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
