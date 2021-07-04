@@ -74,7 +74,7 @@ pub fn checked_wheel_rpm_and_new_count(
 }
 
 pub fn checked_crank_rpm_and_new_count(
-    a: &Option<CscMeasurement>,
+    a: Option<&CscMeasurement>,
     b: &CscMeasurement,
 ) -> Option<(f64, u32)> {
     // If we don't have previous measurement, then continue, but if we have a previous, but it
@@ -209,7 +209,7 @@ mod tests {
         assert_eq!(
             Some((95.10835913312694, 2)),
             checked_crank_rpm_and_new_count(
-                &Some(CscMeasurement {
+                Some(&CscMeasurement {
                     wheel: None,
                     crank: Some(RevolutionData {
                         revolution_count: 4434,
@@ -232,7 +232,7 @@ mod tests {
         assert_eq!(
             None,
             checked_crank_rpm_and_new_count(
-                &Some(CscMeasurement {
+                Some(&CscMeasurement {
                     wheel: None,
                     crank: None
                 }),
@@ -252,7 +252,7 @@ mod tests {
         assert_eq!(
             Some((80.0, 2)),
             checked_crank_rpm_and_new_count(
-                &None,
+                None,
                 &CscMeasurement {
                     wheel: None,
                     crank: Some(RevolutionData {

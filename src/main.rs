@@ -372,7 +372,8 @@ pub fn main() {
             cadence_measure.on_notification(Box::new(move |n| {
                 let elapsed = start.elapsed();
                 let csc_measure = parse_csc_measurement(&n.value);
-                let r = checked_crank_rpm_and_new_count(&o_last_cadence_measure, &csc_measure);
+                let r =
+                    checked_crank_rpm_and_new_count(o_last_cadence_measure.as_ref(), &csc_measure);
                 if let Some((rpm, new_crank_count)) = r {
                     crank_count = crank_count + new_crank_count;
                     let mut display = display_mutex_cadence.lock().unwrap();
@@ -631,7 +632,7 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                     // given that the CSC UUID/characterstic supports both.
                     let csc_measurement = parse_csc_measurement(&v);
                     let o_crank_rpm = checked_crank_rpm_and_new_count(
-                        &last_cadence_csc_measurement,
+                        last_cadence_csc_measurement.as_ref(),
                         &csc_measurement,
                     )
                     .map(|x| x.0);
