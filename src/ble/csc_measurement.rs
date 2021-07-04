@@ -72,12 +72,14 @@ pub fn checked_crank_rpm_and_new_count(
 ) -> Option<(f64, u32)> {
     // If we don't have previous measurement, then continue, but if we have a previous, but it
     // doesn't have crank data, then we abort.
-    let a = match a {
-        Some(x) => Some(&x.crank),
-        None => Some(&None),
-    };
-    let b = b.crank.as_ref();
-    crate::utils::lift_a2_option(a, b, checked_crank_rpm_and_new_count_rev_data).and_then(|x| x)
+    match (a, b.crank.as_ref()) {
+        (_, None) => None,
+        (None, Some(b)) => checked_crank_rpm_and_new_count_rev_data(None, b),
+        (Some(a), Some(b)) => match a.crank.as_ref() {
+            None => None,
+            Some(a) => checked_crank_rpm_and_new_count_rev_data(Some(a), b),
+        },
+    }
 }
 
 // TODO: How to better handle overflow when managing raw/decoded data
@@ -103,14 +105,14 @@ fn checked_rpm_and_new_count_rev_data(
 }
 
 fn checked_crank_rpm_and_new_count_rev_data(
-    a: &Option<RevolutionData>,
+    a: Option<&RevolutionData>,
     b: &RevolutionData,
 ) -> Option<(f64, u32)> {
     let duration = checked_duration_o(a, b);
     if duration == 0.0 {
         None
     } else {
-        let a_revolution_count = a.as_ref().map_or(0, |x| x.revolution_count);
+        let a_revolution_count = a.map_or(0, |x| x.revolution_count);
         let new_revolutions = if b.revolution_count > a_revolution_count {
             b.revolution_count - a_revolution_count
         } else {
@@ -129,8 +131,8 @@ fn checked_duration(a: &RevolutionData, b: &RevolutionData) -> f64 {
     }
 }
 
-fn checked_duration_o(a: &Option<RevolutionData>, b: &RevolutionData) -> f64 {
-    let a_last_revolution_event_time = a.as_ref().map_or(0.0, |x| x.last_revolution_event_time);
+fn checked_duration_o(a: Option<&RevolutionData>, b: &RevolutionData) -> f64 {
+    let a_last_revolution_event_time = a.map_or(0.0, |x| x.last_revolution_event_time);
     if b.last_revolution_event_time > a_last_revolution_event_time {
         b.last_revolution_event_time - a_last_revolution_event_time
     } else {
@@ -218,6 +220,43 @@ mod tests {
                     crank: Some(RevolutionData {
                         revolution_count: 4436,
                         last_revolution_event_time: 0.1982421875
+                    })
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn does_not_default_if_crank_data_is_not_present() {
+        assert_eq!(
+            None,
+            checked_crank_rpm_and_new_count(
+                &Some(CscMeasurement {
+                    wheel: None,
+                    crank: None
+                }),
+                &CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 4436,
+                        last_revolution_event_time: 0.1982421875
+                    })
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn defaults_if_missing_measurement_entirely() {
+        assert_eq!(
+            Some((80.0, 2)),
+            checked_crank_rpm_and_new_count(
+                &None,
+                &CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 2,
+                        last_revolution_event_time: 1.5
                     })
                 }
             )

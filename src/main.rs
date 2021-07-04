@@ -246,9 +246,8 @@ pub fn main() {
             speed_measure.on_notification(Box::new(move |n| {
                 let elapsed = start.elapsed();
                 let csc_measure = parse_csc_measurement(&n.value);
-                let r = o_last_speed_measure
-                    .as_ref()
-                    .and_then(|a| checked_wheel_rpm_and_new_count(a, &csc_measure));
+                let r =
+                    checked_wheel_rpm_and_new_count(o_last_speed_measure.as_ref(), &csc_measure);
                 if let Some((wheel_rpm, new_wheel_count)) = r {
                     wheel_count = wheel_count + new_wheel_count;
                     let mut display = display_mutex_speed.lock().unwrap();
@@ -636,9 +635,10 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                         &csc_measurement,
                     )
                     .map(|x| x.0);
-                    let o_wheel = last_wheel_csc_measurement
-                        .clone()
-                        .and_then(|a| checked_wheel_rpm_and_new_count(&a, &csc_measurement));
+                    let o_wheel = checked_wheel_rpm_and_new_count(
+                        last_wheel_csc_measurement.as_ref(),
+                        &csc_measurement,
+                    );
                     if let Some(crank_rpm) = o_crank_rpm {
                         r.cadence = Some(crank_rpm as u8);
                     }
