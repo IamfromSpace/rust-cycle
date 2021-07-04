@@ -89,6 +89,8 @@ pub fn checked_crank_rpm_and_new_count(
     }
 }
 
+// TODO: We can put sanity checks in both of these functions.  If at any point we exceed maximum
+// known records, it's probably better to just throw the data away.
 // TODO: How to better handle overflow when managing raw/decoded data
 fn checked_crank_rpm_and_new_count_rev_data(
     a: Option<&RevolutionData>,
