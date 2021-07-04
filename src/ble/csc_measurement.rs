@@ -80,15 +80,10 @@ fn checked_rpm_and_new_count_rev_data(
     a: &RevolutionData,
     b: &RevolutionData,
 ) -> Option<(f64, u32)> {
-    if a.last_revolution_event_time == b.last_revolution_event_time {
+    let duration = checked_duration(a, b);
+    if duration == 0.0 {
         None
     } else {
-        let duration = if b.last_revolution_event_time > a.last_revolution_event_time {
-            b.last_revolution_event_time - a.last_revolution_event_time
-        } else {
-            0b1000000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
-        };
-
         // For cranks, this takes a _long_ time to overflow, but it can happen.
         // For wheels, this is essentially impossible (>8.5M km ride), so this
         // if condition will simply never occur.
@@ -99,6 +94,14 @@ fn checked_rpm_and_new_count_rev_data(
         };
 
         Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
+    }
+}
+
+fn checked_duration(a: &RevolutionData, b: &RevolutionData) -> f64 {
+    if b.last_revolution_event_time > a.last_revolution_event_time {
+        b.last_revolution_event_time - a.last_revolution_event_time
+    } else {
+        0b1000000 as f64 + b.last_revolution_event_time - a.last_revolution_event_time
     }
 }
 
