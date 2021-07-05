@@ -263,4 +263,88 @@ mod tests {
             )
         )
     }
+
+    use super::checked_wheel_rpm_and_new_count;
+    #[test]
+    fn wheel_overflow_works() {
+        assert_eq!(
+            Some((95.10835913312694, 2)),
+            checked_wheel_rpm_and_new_count(
+                Some(&CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 4434,
+                        last_revolution_event_time: 62.9365234375
+                    }),
+                    crank: None,
+                }),
+                &CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 4436,
+                        last_revolution_event_time: 0.1982421875
+                    }),
+                    crank: None,
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn wheel_does_not_default_if_crank_data_is_not_present() {
+        assert_eq!(
+            None,
+            checked_wheel_rpm_and_new_count(
+                Some(&CscMeasurement {
+                    wheel: None,
+                    crank: None
+                }),
+                &CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 4436,
+                        last_revolution_event_time: 0.1982421875
+                    }),
+                    crank: None,
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn wheel_defaults_if_missing_measurement_entirely() {
+        assert_eq!(
+            Some((80.0, 2)),
+            checked_wheel_rpm_and_new_count(
+                None,
+                &CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 2,
+                        last_revolution_event_time: 1.5
+                    }),
+                    crank: None,
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn wheel_assumes_missing_when_backwards() {
+        assert_eq!(
+            Some((80.0, 2)),
+            checked_wheel_rpm_and_new_count(
+                Some(&CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 4434,
+                        last_revolution_event_time: 62.9365234375
+                    }),
+                    crank: None,
+                }),
+                &CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 2,
+                        last_revolution_event_time: 1.5
+                    }),
+                    crank: None,
+                }
+            )
+        )
+    }
 }
