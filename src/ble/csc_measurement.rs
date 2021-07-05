@@ -134,7 +134,7 @@ fn checked_wheel_rpm_and_new_count_rev_data(
 
 fn checked_duration(a: Option<&RevolutionData>, b: &RevolutionData) -> f64 {
     let a_last_revolution_event_time = a.map_or(0.0, |x| x.last_revolution_event_time);
-    if b.last_revolution_event_time > a_last_revolution_event_time {
+    if b.last_revolution_event_time >= a_last_revolution_event_time {
         b.last_revolution_event_time - a_last_revolution_event_time
     } else {
         0b1000000 as f64 + b.last_revolution_event_time - a_last_revolution_event_time
@@ -253,6 +253,29 @@ mod tests {
             Some((80.0, 2)),
             checked_crank_rpm_and_new_count(
                 None,
+                &CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 2,
+                        last_revolution_event_time: 1.5
+                    })
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn none_if_not_new() {
+        assert_eq!(
+            None,
+            checked_crank_rpm_and_new_count(
+                Some(&CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 2,
+                        last_revolution_event_time: 1.5
+                    })
+                }),
                 &CscMeasurement {
                     wheel: None,
                     crank: Some(RevolutionData {
