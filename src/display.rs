@@ -315,13 +315,12 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         .into_styled(style_tiny)
         .draw(target)?;
 
-        // TODO: Since some text is longer than others, this draws funny on occasion (ex. FIXFIX
-        // after getting a fix after having not had one.
         Text::new(
+            // Must always be 6 characters, so that new values clear the previous
             &match gps_fix {
                 None => "NO GPS",
                 Some((false, _)) => "NO FIX",
-                Some((true, _)) => "FIX",
+                Some((true, _)) => "FIX   ",
             },
             geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
         )
