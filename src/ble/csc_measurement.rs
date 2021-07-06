@@ -63,14 +63,9 @@ pub fn checked_wheel_rpm_and_new_count(
 ) -> Option<(f64, u32)> {
     // If we don't have previous measurement, then continue, but if we have a previous, but it
     // doesn't have wheel data, then we abort.
-    match (a, b.wheel.as_ref()) {
-        (_, None) => None,
-        (None, Some(b)) => checked_wheel_rpm_and_new_count_rev_data(None, b),
-        (Some(a), Some(b)) => match a.wheel.as_ref() {
-            None => None,
-            Some(a) => checked_wheel_rpm_and_new_count_rev_data(Some(a), b),
-        },
-    }
+    let a = crate::utils::sequence_option_option(a.map(|x| x.wheel.as_ref()));
+    let b = b.wheel.as_ref();
+    crate::utils::lift_a2_option(a, b, checked_wheel_rpm_and_new_count_rev_data).and_then(|x| x)
 }
 
 pub fn checked_crank_rpm_and_new_count(
@@ -79,14 +74,9 @@ pub fn checked_crank_rpm_and_new_count(
 ) -> Option<(f64, u32)> {
     // If we don't have previous measurement, then continue, but if we have a previous, but it
     // doesn't have crank data, then we abort.
-    match (a, b.crank.as_ref()) {
-        (_, None) => None,
-        (None, Some(b)) => checked_crank_rpm_and_new_count_rev_data(None, b),
-        (Some(a), Some(b)) => match a.crank.as_ref() {
-            None => None,
-            Some(a) => checked_crank_rpm_and_new_count_rev_data(Some(a), b),
-        },
-    }
+    let a = crate::utils::sequence_option_option(a.map(|x| x.crank.as_ref()));
+    let b = b.crank.as_ref();
+    crate::utils::lift_a2_option(a, b, checked_crank_rpm_and_new_count_rev_data).and_then(|x| x)
 }
 
 // TODO: We can put sanity checks in both of these functions.  If at any point we exceed maximum
