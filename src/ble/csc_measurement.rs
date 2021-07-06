@@ -79,8 +79,6 @@ pub fn checked_crank_rpm_and_new_count(
     crate::utils::lift_a2_option(a, b, checked_crank_rpm_and_new_count_rev_data).and_then(|x| x)
 }
 
-// TODO: We can put sanity checks in both of these functions.  If at any point we exceed maximum
-// known records, it's probably better to just throw the data away.
 // TODO: How to better handle overflow when managing raw/decoded data
 fn checked_crank_rpm_and_new_count_rev_data(
     a: Option<&RevolutionData>,
@@ -97,7 +95,15 @@ fn checked_crank_rpm_and_new_count_rev_data(
             0x10000 + b.revolution_count - a_revolution_count
         };
 
-        Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
+        let rpm = new_revolutions as f64 * 60.0 / duration;
+
+        // This appears to be a world record, and videos of 260 are completely insane.
+        // TODO: is it worth still reporting new_revolutions?
+        if rpm > 271.0 {
+            None
+        } else {
+            Some((rpm, new_revolutions))
+        }
     }
 }
 
@@ -113,7 +119,17 @@ fn checked_wheel_rpm_and_new_count_rev_data(
         // It's not really feasible for wheels to overflow, this is in the billions of meters.
         if b.revolution_count > a_revolution_count {
             let new_revolutions = b.revolution_count - a_revolution_count;
-            Some((new_revolutions as f64 * 60.0 / duration, new_revolutions))
+
+            let rpm = new_revolutions as f64 * 60.0 / duration;
+
+            // This is just above the current world record from the AeroVelo Eta at an absolutely
+            // mind-boggling 144kmh (with thin 650c tires).
+            // TODO: is it worth still reporting new_revolutions?
+            if rpm > 1250.0 {
+                None
+            } else {
+                Some((rpm, new_revolutions))
+            }
         } else {
             // This indicates a reset, so we instead assume the two events are not connected and
             // there is no previous.
@@ -277,6 +293,29 @@ mod tests {
         )
     }
 
+    #[test]
+    fn crank_does_not_report_impossible_numbers() {
+        assert_eq!(
+            None,
+            checked_crank_rpm_and_new_count(
+                Some(&CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 4434,
+                        last_revolution_event_time: 1.0
+                    }),
+                }),
+                &CscMeasurement {
+                    wheel: None,
+                    crank: Some(RevolutionData {
+                        revolution_count: 4439,
+                        last_revolution_event_time: 2.0
+                    }),
+                }
+            )
+        )
+    }
+
     use super::checked_wheel_rpm_and_new_count;
     #[test]
     fn wheel_overflow_works() {
@@ -354,6 +393,29 @@ mod tests {
                     wheel: Some(RevolutionData {
                         revolution_count: 2,
                         last_revolution_event_time: 1.5
+                    }),
+                    crank: None,
+                }
+            )
+        )
+    }
+
+    #[test]
+    fn wheel_does_not_report_impossible_numbers() {
+        assert_eq!(
+            None,
+            checked_wheel_rpm_and_new_count(
+                Some(&CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 4434,
+                        last_revolution_event_time: 1.0
+                    }),
+                    crank: None,
+                }),
+                &CscMeasurement {
+                    wheel: Some(RevolutionData {
+                        revolution_count: 4455,
+                        last_revolution_event_time: 2.0
                     }),
                     crank: None,
                 }
