@@ -24,9 +24,9 @@ pub struct Display {
 }
 
 impl Display {
-    pub fn new(start_instant: Instant) -> Display {
+    pub fn new() -> Display {
         let memory_lcd = MemoryLcd::new().unwrap();
-        let workout = WorkoutDisplay::new(start_instant);
+        let workout = WorkoutDisplay::new();
         Display {
             memory_lcd,
             workout,
@@ -64,6 +64,10 @@ impl Display {
 
     pub fn set_gps_fix(&mut self, has_fix: bool) {
         self.workout.set_gps_fix(has_fix);
+    }
+
+    pub fn set_start(&mut self, start: Option<Instant>) {
+        self.workout.set_start(start);
     }
 
     pub fn render_msg(&mut self, s: &str) {
@@ -112,11 +116,11 @@ pub struct WorkoutDisplay {
     speed: Option<(f32, Instant)>,
     distance: f64,
     gps_fix: Option<(bool, Instant)>,
-    start_instant: Instant,
+    start_instant: Option<Instant>,
 }
 
 impl WorkoutDisplay {
-    pub fn new(start_instant: Instant) -> WorkoutDisplay {
+    pub fn new() -> WorkoutDisplay {
         WorkoutDisplay {
             power: None,
             cadence: None,
@@ -126,7 +130,7 @@ impl WorkoutDisplay {
             speed: None,
             distance: 0.0,
             gps_fix: None,
-            start_instant,
+            start_instant: None,
         }
     }
 
@@ -161,6 +165,10 @@ impl WorkoutDisplay {
     pub fn set_gps_fix(&mut self, has_fix: bool) {
         self.gps_fix = Some((has_fix, Instant::now()));
     }
+
+    pub fn set_start(&mut self, start: Option<Instant>) {
+        self.start_instant = start;
+    }
 }
 
 impl Drawable<BinaryColor> for WorkoutDisplay {
@@ -174,7 +182,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
             .background_color(BinaryColor::Off)
             .build();
 
-        let elapsed_secs = self.start_instant.elapsed().as_secs();
+        let elapsed_secs = self.start_instant.map(|x| x.elapsed().as_secs());
         // We lazily purge any values that are older than 5s just before render
         let power = self.power.and_then(none_if_stale);
         let cadence = self.cadence.and_then(none_if_stale);
@@ -231,7 +239,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 // We assume 80rpm unless otherwise known
                 metabolic_cost_in_kcal(
                     self.external_energy,
-                    self.crank_count.unwrap_or((elapsed_secs * 80 / 60) as u32)
+                    self.crank_count
+                        .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
                 ) as u16
             ),
             geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
@@ -291,15 +300,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
             .draw(target)?;
 
         Text::new(
-            &format!(
-                "{}",
-                &format!(
-                    "{:02}:{:02}:{:02}",
-                    elapsed_secs / 3600,
-                    (elapsed_secs / 60) % 60,
-                    elapsed_secs % 60
-                )
-            ),
+            &elapsed_secs.map_or("--:--:--".to_string(), |s| {
+                format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
+            }),
             geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6),
         )
         .into_styled(style_large)

@@ -74,11 +74,7 @@ pub fn main() {
         let server = telemetry_server::TelemetryServer::new(db.clone());
 
         // Create Our Display
-        // TODO: Ideally this is a) the same instant as our `start` instant below b) actually a
-        // match to the real start time.  By setting the start instant here, it means that we're
-        // not displaying the length of the workout, but instead how long the display has been
-        // running.
-        let mut display = display::Display::new(Instant::now());
+        let mut display = display::Display::new();
 
         // Create our Buttons
         // TODO: Simulate these, so we can run everything on desktop in
@@ -173,6 +169,8 @@ pub fn main() {
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
         let start = Instant::now();
+
+        display.set_start(Some(start));
 
         // Create Our Display
         let display_mutex = Arc::new(Mutex::new(display));
