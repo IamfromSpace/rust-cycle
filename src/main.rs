@@ -66,6 +66,7 @@ pub fn main() {
     let is_version_mode = args.contains("-v") || args.contains("--version");
 
     if is_version_mode {
+        // TODO: It might be handy to put this on the display
         println!("{}", git_version::git_version!());
     } else {
         let db = telemetry_db::open_default().unwrap();
