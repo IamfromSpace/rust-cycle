@@ -29,13 +29,22 @@ impl<P: Peripheral, C: Central<P> + 'static> Speed<C, P> {
                 peripheral.subscribe(&speed_measurement).unwrap();
                 println!("Subscribed to speed measure");
 
+                // TODO: Is infinite delayed back-off retry really what we want here?  A couple
+                // times may make sense, but possibly we should put the user in control of
+                // how/when to try and reconnect.
                 let central_for_disconnects = central.clone();
                 central.on_event(Box::new(move |evt| {
                     if let CentralEvent::DeviceDisconnected(addr) = evt {
                         let p = central_for_disconnects.peripheral(addr).unwrap();
                         if is_speed(&p) {
-                            thread::sleep(Duration::from_secs(2));
-                            p.connect().unwrap();
+                            let mut wait = 2;
+                            loop {
+                                thread::sleep(Duration::from_secs(wait));
+                                if p.connect().is_ok() {
+                                    break;
+                                }
+                                wait = wait * 2;
+                            }
                         }
                     }
                 }));

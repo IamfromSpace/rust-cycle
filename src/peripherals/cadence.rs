@@ -34,8 +34,14 @@ impl<P: Peripheral, C: Central<P> + 'static> Cadence<C, P> {
                     if let CentralEvent::DeviceDisconnected(addr) = evt {
                         let p = central_for_disconnects.peripheral(addr).unwrap();
                         if is_cadence(&p) {
-                            thread::sleep(Duration::from_secs(2));
-                            p.connect().unwrap();
+                            let mut wait = 2;
+                            loop {
+                                thread::sleep(Duration::from_secs(wait));
+                                if p.connect().is_ok() {
+                                    break;
+                                }
+                                wait = wait * 2;
+                            }
                         }
                     }
                 }));

@@ -59,17 +59,22 @@ impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
                 let tp_for_disconnects = target_power.clone();
                 let pcc_for_disconnects = power_control_char.clone();
 
-                // TODO: How on earth do we handle errors here???
-                // Potentially we just keep retrying with exponential back-off?
                 central.on_event(Box::new(move |evt| {
                     if let CentralEvent::DeviceDisconnected(addr) = evt {
                         let p = central_for_disconnects.peripheral(addr).unwrap();
                         if is_kickr(&p) {
-                            thread::sleep(Duration::from_secs(2));
-                            p.connect().unwrap();
-                            unlock(&p).unwrap();
-                            if let Some(power) = *(tp_for_disconnects.lock().unwrap()) {
-                                set_power(&p, &pcc_for_disconnects, power).unwrap();
+                            let mut wait = 2;
+                            loop {
+                                thread::sleep(Duration::from_secs(wait));
+                                if p.connect().is_ok() {
+                                    // TODO: Not sure what we could possibly do if these fail
+                                    unlock(&p).unwrap();
+                                    if let Some(power) = *(tp_for_disconnects.lock().unwrap()) {
+                                        set_power(&p, &pcc_for_disconnects, power).unwrap();
+                                    }
+                                    break;
+                                }
+                                wait = wait * 2;
                             }
                         }
                     }
