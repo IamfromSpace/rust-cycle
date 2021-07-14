@@ -583,6 +583,25 @@ fn or_crash_with_msg<T>(
 }
 
 fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8> {
+    db_sessions_to_fit(db, std::iter::once(session_key))
+}
+
+fn db_sessions_to_fit<I: Iterator<Item = u64>>(
+    db: &telemetry_db::TelemetryDb,
+    session_keys: I,
+) -> Vec<u8> {
+    fit::to_file(
+        &session_keys
+            .flat_map(|sk| db_session_to_fit_records(db, sk))
+            .collect(),
+    )
+}
+
+// TODO: Return an iterator to avoid intermediate Vec construction
+fn db_session_to_fit_records(
+    db: &telemetry_db::TelemetryDb,
+    session_key: u64,
+) -> Vec<fit::FitRecord> {
     let mut last_power: Option<u16> = None;
     let mut last_cadence_csc_measurement: Option<CscMeasurement> = None;
     let mut last_wheel_csc_measurement: Option<CscMeasurement> = None;
@@ -675,5 +694,5 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
         }
     }
 
-    fit::to_file(&records)
+    records
 }
