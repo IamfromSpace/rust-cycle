@@ -97,11 +97,20 @@ pub fn main() {
                         Node((
                             "Fixed".to_string(),
                             vec![
-                                Leaf(NotExit("165W")),
-                                Leaf(NotExit("170W")),
-                                Leaf(NotExit("175W")),
-                                Leaf(NotExit("180W")),
-                                Leaf(NotExit("185W")),
+                                Leaf(NotExit("145W")),
+                                Leaf(NotExit("150W")),
+                                Leaf(NotExit("155W")),
+                                Leaf(NotExit("160W")),
+                                Node((
+                                    "More".to_string(),
+                                    vec![
+                                        Leaf(NotExit("165W")),
+                                        Leaf(NotExit("170W")),
+                                        Leaf(NotExit("175W")),
+                                        Leaf(NotExit("180W")),
+                                        Leaf(NotExit("185W")),
+                                    ],
+                                )),
                             ],
                         )),
                         Leaf(NotExit("Ramp")),
@@ -142,6 +151,10 @@ pub fn main() {
         let (use_hr, use_cadence, location) = match workout_name {
             "100W" => (false, false, Location::Indoor(single_value(100))),
             "Outdoor" => (true, true, Location::Outdoor),
+            "145W" => (true, true, Location::Indoor(single_value(145))),
+            "150W" => (true, true, Location::Indoor(single_value(150))),
+            "155W" => (true, true, Location::Indoor(single_value(155))),
+            "160W" => (true, true, Location::Indoor(single_value(160))),
             "165W" => (true, true, Location::Indoor(single_value(165))),
             "170W" => (true, true, Location::Indoor(single_value(170))),
             "175W" => (true, true, Location::Indoor(single_value(175))),
