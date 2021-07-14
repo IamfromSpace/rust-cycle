@@ -1,4 +1,4 @@
-use crate::db_session_to_fit;
+use crate::db_sessions_to_fit;
 use crate::telemetry_db::TelemetryDb;
 use nom::{
     branch::alt,
@@ -45,49 +45,67 @@ impl TelemetryServer {
                                 if request.method() == &Method::Get {
                                     let key = match url {
                                         (_, UrlKey::Latest) => {
-                                            db.get_most_recent_session().unwrap()
+                                            db.get_most_recent_session().unwrap().map(|k| (k, k))
                                         }
-                                        (_, UrlKey::Key(k)) => Some(k),
-                                        _ => {
-                                            // TODO: this shouldn't 404, it should return the combo
-                                            // of everything
-                                            None
-                                        }
+                                        (_, UrlKey::Key(k)) => Some((k, k)),
+                                        (_, UrlKey::KeyRange((a, b))) => Some((a, b)),
                                     };
                                     match key {
-                                        Some(requested_session) => {
-                                            session = db_session_to_fit(&db, requested_session);
-                                            let mut r = Response::new(
-                                                StatusCode(200),
-                                                // TODO; Header for next most recent
-                                                vec![
-                                                    Header::from_bytes(
-                                                        &b"Content-Type"[..],
-                                                        &b"application/vnd.ant.fit"[..],
-                                                    )
-                                                    .unwrap(),
-                                                    Header::from_bytes(
-                                                        &b"Session-Key"[..],
-                                                        format!("{:?}", requested_session),
-                                                    )
-                                                    .unwrap(),
-                                                ],
-                                                &session[..],
-                                                None,
-                                                None,
-                                            );
-                                            if let Ok(Some(key)) =
-                                                db.get_previous_session(requested_session)
-                                            {
-                                                r.add_header(
-                                                    Header::from_bytes(
-                                                        &b"Previous-Session-Key"[..],
-                                                        format!("{:?}", key),
-                                                    )
-                                                    .unwrap(),
-                                                )
+                                        Some((a, b)) => {
+                                            let o_session_keys =
+                                                db.sessions_between_inclusive(a, b).unwrap();
+
+                                            match o_session_keys {
+                                                None => Response::new(
+                                                    StatusCode(404),
+                                                    vec![],
+                                                    &[][..],
+                                                    None,
+                                                    None,
+                                                ),
+                                                Some(session_keys) => {
+                                                    session = db_sessions_to_fit(
+                                                        &db,
+                                                        session_keys.into_iter(),
+                                                    );
+                                                    let mut r = Response::new(
+                                                        StatusCode(200),
+                                                        // TODO; Header for next most recent
+                                                        vec![
+                                                            Header::from_bytes(
+                                                                &b"Content-Type"[..],
+                                                                &b"application/vnd.ant.fit"[..],
+                                                            )
+                                                            .unwrap(),
+                                                            Header::from_bytes(
+                                                                &b"Session-Key"[..],
+                                                                // TODO: This is a coupling
+                                                                if a == b {
+                                                                    format!("{:?}-{:?}", a, b)
+                                                                } else {
+                                                                    format!("{:?}", a)
+                                                                },
+                                                            )
+                                                            .unwrap(),
+                                                        ],
+                                                        &session[..],
+                                                        None,
+                                                        None,
+                                                    );
+                                                    if let Ok(Some(key)) =
+                                                        db.get_previous_session(a)
+                                                    {
+                                                        r.add_header(
+                                                            Header::from_bytes(
+                                                                &b"Previous-Session-Key"[..],
+                                                                format!("{:?}", key),
+                                                            )
+                                                            .unwrap(),
+                                                        )
+                                                    }
+                                                    r
+                                                }
                                             }
-                                            r
                                         }
                                         None => {
                                             // The rare case where there are no
