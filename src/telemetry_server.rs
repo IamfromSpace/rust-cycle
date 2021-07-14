@@ -5,7 +5,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::digit1,
     combinator::map,
-    sequence::{preceded, terminated},
+    sequence::{pair, preceded, terminated},
     IResult,
 };
 use std::{mem, str::FromStr, sync::Arc, thread, thread::JoinHandle, time::Duration};
@@ -48,6 +48,11 @@ impl TelemetryServer {
                                             db.get_most_recent_session().unwrap()
                                         }
                                         (_, UrlKey::Key(k)) => Some(k),
+                                        _ => {
+                                            // TODO: this shouldn't 404, it should return the combo
+                                            // of everything
+                                            None
+                                        }
                                     };
                                     match key {
                                         Some(requested_session) => {
@@ -128,6 +133,7 @@ impl Drop for TelemetryServer {
 enum UrlKey {
     Latest,
     Key(u64),
+    KeyRange((u64, u64)),
 }
 
 // TODO: Terminate
@@ -140,6 +146,13 @@ fn parse_url(i: &str) -> IResult<&str, UrlKey> {
             tag("/workouts/"),
             alt((
                 map(tag("latest"), |_| UrlKey::Latest),
+                map(
+                    pair(
+                        map(digit1, |s| u64::from_str(s).unwrap()),
+                        preceded(tag("-"), map(digit1, |s| u64::from_str(s).unwrap())),
+                    ),
+                    |t| UrlKey::KeyRange(t),
+                ),
                 map(digit1, |s| UrlKey::Key(u64::from_str(s).unwrap())),
             )),
         ),
@@ -160,5 +173,13 @@ mod tests {
     #[test]
     fn parse_url_key() {
         assert_eq!(parse_url("/workouts/1234.fit"), Ok(("", UrlKey::Key(1234))))
+    }
+
+    #[test]
+    fn parse_url_key_range() {
+        assert_eq!(
+            parse_url("/workouts/1234-9382.fit"),
+            Ok(("", UrlKey::KeyRange((1234, 9382))))
+        )
     }
 }
