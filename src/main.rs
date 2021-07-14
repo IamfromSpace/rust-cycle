@@ -619,23 +619,20 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                 None => empty_record(seconds_since_unix_epoch),
             };
 
-            record = Some(match value {
+            match value {
                 telemetry_db::Notification::Gps(nmea0183::ParseResult::GGA(Some(gga))) => {
                     r.latitude = Some(gga.latitude.as_f64());
                     r.longitude = Some(gga.longitude.as_f64());
                     r.altitude = Some(gga.altitude.meters);
-                    r
                 }
-                telemetry_db::Notification::Gps(_) => r,
+                telemetry_db::Notification::Gps(_) => (),
                 telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                     r.heart_rate = Some(parse_hrm(&v).bpm as u8);
-                    r
                 }
                 telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
                     let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
                     last_power = Some(p);
                     r.power = Some(p);
-                    r
                 }
                 telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
                     // TODO: Clean up cloning here that supports crank and wheel
@@ -668,13 +665,13 @@ fn db_session_to_fit(db: &telemetry_db::TelemetryDb, session_key: u64) -> Vec<u8
                     if csc_measurement.wheel.is_some() {
                         last_wheel_csc_measurement = Some(csc_measurement.clone());
                     }
-                    r
                 }
                 _ => {
                     println!("UUID not matched");
-                    r
                 }
-            });
+            };
+
+            record = Some(r);
         }
     }
 
