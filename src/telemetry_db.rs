@@ -105,4 +105,36 @@ impl TelemetryDb {
             })
         })
     }
+
+    pub fn check_session(&self, key: u64) -> sled::Result<bool> {
+        self.db
+            .get_gt(self.serial_config.serialize(&key).unwrap())
+            .map(|x| x.map_or(false, |(k, _)| self.decode_key(k).0 == key))
+    }
+
+    pub fn sessions_between_inclusive(&self, a: u64, b: u64) -> sled::Result<Option<Vec<u64>>> {
+        let a_exists = self.check_session(a)?;
+        let b_exists = self.check_session(b)?;
+        if a > b || !a_exists || !b_exists {
+            Ok(None)
+        } else {
+            if a == b {
+                Ok(Some(vec![a]))
+            } else {
+                let mut v = Vec::new();
+                v.push(b);
+                let mut last = b;
+                loop {
+                    // Since we know 'a' exists, it's impossible to _not_ find a previous session
+                    last = self.get_previous_session(last)?.unwrap();
+                    v.push(last);
+                    if last == a {
+                        break;
+                    }
+                }
+                v.reverse();
+                Ok(Some(v))
+            }
+        }
+    }
 }
