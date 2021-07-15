@@ -593,17 +593,15 @@ fn db_sessions_to_fit<I: Iterator<Item = u64>>(
     )
 }
 
-// TODO: Return an iterator to avoid intermediate Vec construction
 fn db_session_to_fit_records(
     db: &telemetry_db::TelemetryDb,
     session_key: u64,
-) -> Vec<fit::FitRecord> {
+) -> impl Iterator<Item = fit::FitRecord> + '_ {
     let mut last_power: Option<u16> = None;
     let mut last_cadence_csc_measurement: Option<CscMeasurement> = None;
     let mut last_wheel_csc_measurement: Option<CscMeasurement> = None;
     let mut wheel_count = 0;
     let mut record: Option<fit::FitRecord> = None;
-    let mut records = Vec::new();
     let empty_record = |t| fit::FitRecord {
         seconds_since_unix_epoch: t,
         power: None,
@@ -616,10 +614,11 @@ fn db_session_to_fit_records(
         speed: None,
     };
 
-    for x in db.get_session_entries(session_key) {
+    db.get_session_entries(session_key).filter_map(move |x| {
         if let Ok((d, value)) = x {
+            let mut finished_record = None;
             let seconds_since_unix_epoch = (session_key + d.as_secs()) as u32;
-            let mut r = match record {
+            let mut r = match record.take() {
                 Some(mut r) => {
                     if r.seconds_since_unix_epoch == seconds_since_unix_epoch {
                         r
@@ -627,7 +626,7 @@ fn db_session_to_fit_records(
                         if let None = r.power {
                             r.power = last_power;
                         }
-                        records.push(r);
+                        finished_record = Some(r);
                         empty_record(seconds_since_unix_epoch)
                     }
                 }
@@ -687,8 +686,11 @@ fn db_session_to_fit_records(
             };
 
             record = Some(r);
-        }
-    }
 
-    records
+            finished_record
+        } else {
+            // TODO: We shouldn't really just be dropping the sled errors on the floor!
+            None
+        }
+    })
 }
