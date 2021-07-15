@@ -67,7 +67,9 @@ impl TelemetryServer {
                                                     session = db_sessions_to_fit(
                                                         &db,
                                                         session_keys.into_iter(),
-                                                    );
+                                                    )
+                                                    // TODO: 500
+                                                    .unwrap();
                                                     let mut r = Response::new(
                                                         StatusCode(200),
                                                         // TODO; Header for next most recent

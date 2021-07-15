@@ -585,13 +585,11 @@ fn or_crash_with_msg<T>(
 fn db_sessions_to_fit<I: Iterator<Item = u64>>(
     db: &telemetry_db::TelemetryDb,
     session_keys: I,
-) -> Vec<u8> {
-    fit::to_file(
-        &session_keys
-            // TODO: It gets very challenging to both stay generic and propagate the error
-            .flat_map(|sk| db_session_to_fit_records(db, sk).map(|x| x.unwrap()))
-            .collect(),
-    )
+) -> sled::Result<Vec<u8>> {
+    let fit_records: sled::Result<Vec<fit::FitRecord>> = session_keys
+        .flat_map(|sk| db_session_to_fit_records(db, sk))
+        .collect();
+    fit_records.map(|frs| fit::to_file(&frs))
 }
 
 fn db_session_to_fit_records(
