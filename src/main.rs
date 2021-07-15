@@ -588,7 +588,8 @@ fn db_sessions_to_fit<I: Iterator<Item = u64>>(
 ) -> Vec<u8> {
     fit::to_file(
         &session_keys
-            .flat_map(|sk| db_session_to_fit_records(db, sk))
+            // TODO: It gets very challenging to both stay generic and propagate the error
+            .flat_map(|sk| db_session_to_fit_records(db, sk).map(|x| x.unwrap()))
             .collect(),
     )
 }
@@ -596,7 +597,7 @@ fn db_sessions_to_fit<I: Iterator<Item = u64>>(
 fn db_session_to_fit_records(
     db: &telemetry_db::TelemetryDb,
     session_key: u64,
-) -> impl Iterator<Item = fit::FitRecord> + '_ {
+) -> impl Iterator<Item = sled::Result<fit::FitRecord>> + '_ {
     let mut last_power: Option<u16> = None;
     let mut last_cadence_csc_measurement: Option<CscMeasurement> = None;
     let mut last_wheel_csc_measurement: Option<CscMeasurement> = None;
@@ -615,82 +616,82 @@ fn db_session_to_fit_records(
     };
 
     db.get_session_entries(session_key).filter_map(move |x| {
-        if let Ok((d, value)) = x {
-            let mut finished_record = None;
-            let seconds_since_unix_epoch = (session_key + d.as_secs()) as u32;
-            let mut r = match record.take() {
-                Some(mut r) => {
-                    if r.seconds_since_unix_epoch == seconds_since_unix_epoch {
-                        r
-                    } else {
-                        if let None = r.power {
-                            r.power = last_power;
+        match x {
+            Ok((d, value)) => {
+                let mut finished_record = None;
+                let seconds_since_unix_epoch = (session_key + d.as_secs()) as u32;
+                let mut r = match record.take() {
+                    Some(mut r) => {
+                        if r.seconds_since_unix_epoch == seconds_since_unix_epoch {
+                            r
+                        } else {
+                            if let None = r.power {
+                                r.power = last_power;
+                            }
+                            finished_record = Some(r);
+                            empty_record(seconds_since_unix_epoch)
                         }
-                        finished_record = Some(r);
-                        empty_record(seconds_since_unix_epoch)
                     }
-                }
-                None => empty_record(seconds_since_unix_epoch),
-            };
+                    None => empty_record(seconds_since_unix_epoch),
+                };
 
-            match value {
-                telemetry_db::Notification::Gps(nmea0183::ParseResult::GGA(Some(gga))) => {
-                    r.latitude = Some(gga.latitude.as_f64());
-                    r.longitude = Some(gga.longitude.as_f64());
-                    r.altitude = Some(gga.altitude.meters);
-                }
-                telemetry_db::Notification::Gps(_) => (),
-                telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
-                    r.heart_rate = Some(parse_hrm(&v).bpm as u8);
-                }
-                telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
-                    let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
-                    last_power = Some(p);
-                    r.power = Some(p);
-                }
-                telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
-                    // TODO: Clean up cloning here that supports crank and wheel
-                    // data coming from different sources :/
-                    // We can't tell if this reading support just one or both,
-                    // given that the CSC UUID/characterstic supports both.
-                    let csc_measurement = parse_csc_measurement(&v);
-                    let o_crank_rpm = checked_crank_rpm_and_new_count(
-                        last_cadence_csc_measurement.as_ref(),
-                        &csc_measurement,
-                    )
-                    .map(|x| x.0);
-                    let o_wheel = checked_wheel_rpm_and_new_count(
-                        last_wheel_csc_measurement.as_ref(),
-                        &csc_measurement,
-                    );
-                    if let Some(crank_rpm) = o_crank_rpm {
-                        r.cadence = Some(crank_rpm as u8);
+                match value {
+                    telemetry_db::Notification::Gps(nmea0183::ParseResult::GGA(Some(gga))) => {
+                        r.latitude = Some(gga.latitude.as_f64());
+                        r.longitude = Some(gga.longitude.as_f64());
+                        r.altitude = Some(gga.altitude.meters);
                     }
-                    if let Some((wheel_rpm, new_wheel_count)) = o_wheel {
-                        r.speed = Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0);
-                        wheel_count += new_wheel_count;
-                        r.distance = Some(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                    telemetry_db::Notification::Gps(_) => (),
+                    telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
+                        r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     }
-                    // We want to consider both the cases where we have
-                    // individual devices and one that has both measures.
-                    if csc_measurement.crank.is_some() {
-                        last_cadence_csc_measurement = Some(csc_measurement.clone());
+                    telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
+                        let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
+                        last_power = Some(p);
+                        r.power = Some(p);
                     }
-                    if csc_measurement.wheel.is_some() {
-                        last_wheel_csc_measurement = Some(csc_measurement.clone());
+                    telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
+                        // TODO: Clean up cloning here that supports crank and wheel
+                        // data coming from different sources :/
+                        // We can't tell if this reading support just one or both,
+                        // given that the CSC UUID/characterstic supports both.
+                        let csc_measurement = parse_csc_measurement(&v);
+                        let o_crank_rpm = checked_crank_rpm_and_new_count(
+                            last_cadence_csc_measurement.as_ref(),
+                            &csc_measurement,
+                        )
+                        .map(|x| x.0);
+                        let o_wheel = checked_wheel_rpm_and_new_count(
+                            last_wheel_csc_measurement.as_ref(),
+                            &csc_measurement,
+                        );
+                        if let Some(crank_rpm) = o_crank_rpm {
+                            r.cadence = Some(crank_rpm as u8);
+                        }
+                        if let Some((wheel_rpm, new_wheel_count)) = o_wheel {
+                            r.speed = Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0);
+                            wheel_count += new_wheel_count;
+                            r.distance = Some(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                        }
+                        // We want to consider both the cases where we have
+                        // individual devices and one that has both measures.
+                        if csc_measurement.crank.is_some() {
+                            last_cadence_csc_measurement = Some(csc_measurement.clone());
+                        }
+                        if csc_measurement.wheel.is_some() {
+                            last_wheel_csc_measurement = Some(csc_measurement.clone());
+                        }
                     }
-                }
-                _ => {
-                    println!("UUID not matched");
-                }
-            };
+                    _ => {
+                        println!("UUID not matched");
+                    }
+                };
 
-            record = Some(r);
+                record = Some(r);
 
-            finished_record
-        } else {
-            // TODO: We shouldn't really just be dropping the sled errors on the floor!
-            None
+                finished_record.map(|x| Ok(x))
+            }
+            Err(e) => Some(Err(e)),
         }
     })
 }
