@@ -214,7 +214,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         Text::new(
             // We only show this if we've gotten a speed measurement before (but
             // we don't care if it's stale).
-            &self.speed.map_or("---".to_string(), |_| {
+            &self.speed.map_or("---   ".to_string(), |_| {
                 format!("{:.2}", self.distance / 1000.0)
             }),
             geometry::Point::new(x, y),
@@ -229,7 +229,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
         let y = y + LABEL_FONT_SIZE;
         Text::new(
-            &speed.map_or("---".to_string(), |x| {
+            &speed.map_or("---   ".to_string(), |x| {
                 format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
             }),
             geometry::Point::new(x, y),
@@ -244,7 +244,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
         let y = y + LABEL_FONT_SIZE;
         Text::new(
-            &power.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+            &power.map_or("---   ".to_string(), |x| format!("{:03}", x.0)),
             geometry::Point::new(x, y),
         )
         .into_styled(style_large)
@@ -259,7 +259,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         Text::new(
             // We only show this if we've gotten a power reading before (but we
             // don't care if it's stale).
-            &self.power.map_or("---".to_string(), |_| {
+            &self.power.map_or("---   ".to_string(), |_| {
                 format!(
                     "{:04}",
                     // We assume 80rpm unless otherwise known
