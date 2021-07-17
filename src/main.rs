@@ -64,10 +64,11 @@ pub fn main() {
 
     let args: BTreeSet<String> = env::args().collect();
     let is_version_mode = args.contains("-v") || args.contains("--version");
+    let version = git_version::git_version!();
 
     if is_version_mode {
         // TODO: It might be handy to put this on the display
-        println!("{}", git_version::git_version!());
+        println!("{}", version);
     } else {
         let db = telemetry_db::open_default().unwrap();
 
@@ -75,7 +76,7 @@ pub fn main() {
         let server = telemetry_server::TelemetryServer::new(db.clone());
 
         // Create Our Display
-        let mut display = display::Display::new();
+        let mut display = display::Display::new(version.to_string());
 
         // Create our Buttons
         // TODO: Simulate these, so we can run everything on desktop in

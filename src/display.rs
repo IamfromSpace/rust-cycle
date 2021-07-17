@@ -21,16 +21,18 @@ pub struct Display {
     memory_lcd: MemoryLcd,
     workout: WorkoutDisplay,
     has_rendered: bool,
+    version: String,
 }
 
 impl Display {
-    pub fn new() -> Display {
+    pub fn new(version: String) -> Display {
         let memory_lcd = MemoryLcd::new().unwrap();
         let workout = WorkoutDisplay::new();
         Display {
             memory_lcd,
             workout,
             has_rendered: false,
+            version: version,
         }
     }
 
@@ -70,10 +72,24 @@ impl Display {
         self.workout.set_start(start);
     }
 
+    fn add_version(&mut self) {
+        // TODO: The position here shouldn't be hard coded
+        Text::new(&self.version, geometry::Point::new(10, 156))
+            .into_styled(
+                TextStyleBuilder::new(Font6x6)
+                    .text_color(BinaryColor::On)
+                    .background_color(BinaryColor::Off)
+                    .build(),
+            )
+            .draw(&mut self.memory_lcd)
+            .unwrap();
+    }
+
     pub fn render_msg(&mut self, s: &str) {
         self.memory_lcd.clear(BinaryColor::Off).unwrap();
         self.has_rendered = false;
         MsgDisplay::new(s).draw(&mut self.memory_lcd).unwrap();
+        self.add_version();
         #[cfg(feature = "simulator")]
         self.memory_lcd.update();
     }
@@ -87,6 +103,7 @@ impl Display {
         OptionDisplay::new(&options[..])
             .draw(&mut self.memory_lcd)
             .unwrap();
+        self.add_version();
         #[cfg(feature = "simulator")]
         self.memory_lcd.update();
     }
@@ -99,6 +116,7 @@ impl Display {
             self.has_rendered = true;
         }
         self.workout.clone().draw(&mut self.memory_lcd).unwrap();
+        self.add_version();
         // TODO: Make the simulator act more like the real deal, and don't
         // require a manual screen refresh.
         #[cfg(feature = "simulator")]
