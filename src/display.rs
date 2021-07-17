@@ -212,7 +212,11 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
         let y = y + LABEL_FONT_SIZE;
         Text::new(
-            &format!("{:.2}", self.distance / 1000.0),
+            // We only show this if we've gotten a speed measurement before (but
+            // we don't care if it's stale).
+            &self.speed.map_or("---".to_string(), |_| {
+                format!("{:.2}", self.distance / 1000.0)
+            }),
             geometry::Point::new(x, y),
         )
         .into_styled(style_large)
@@ -253,15 +257,19 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
         let y = y + LABEL_FONT_SIZE;
         Text::new(
-            &format!(
-                "{:04}",
-                // We assume 80rpm unless otherwise known
-                metabolic_cost_in_kcal(
-                    self.external_energy,
-                    self.crank_count
-                        .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
-                ) as u16
-            ),
+            // We only show this if we've gotten a power reading before (but we
+            // don't care if it's stale).
+            &self.power.map_or("---".to_string(), |_| {
+                format!(
+                    "{:04}",
+                    // We assume 80rpm unless otherwise known
+                    metabolic_cost_in_kcal(
+                        self.external_energy,
+                        self.crank_count
+                            .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
+                    ) as u16
+                )
+            }),
             geometry::Point::new(x, y),
         )
         .into_styled(style_large)
