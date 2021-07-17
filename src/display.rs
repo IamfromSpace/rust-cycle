@@ -5,7 +5,7 @@ use crate::memory_lcd_simulator::MemoryLcd;
 use chrono::Local;
 use embedded_graphics::{
     drawable::Drawable,
-    fonts::{Font6x6, Font8x16, Text},
+    fonts::{Font24x32, Font6x6, Font8x16, Text},
     geometry,
     geometry::Size,
     pixelcolor::BinaryColor,
@@ -173,6 +173,10 @@ impl WorkoutDisplay {
 
 impl Drawable<BinaryColor> for WorkoutDisplay {
     fn draw<D: DrawTarget<BinaryColor>>(self, target: &mut D) -> Result<(), D::Error> {
+        let style_huge = TextStyleBuilder::new(Font24x32)
+            .text_color(BinaryColor::On)
+            .background_color(BinaryColor::Off)
+            .build();
         let style_large = TextStyleBuilder::new(Font8x16)
             .text_color(BinaryColor::On)
             .background_color(BinaryColor::Off)
@@ -190,13 +194,46 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         let speed = self.speed.and_then(none_if_stale);
         let gps_fix = self.gps_fix.and_then(none_if_stale);
 
-        const MARGIN: i32 = 8;
+        const MARGIN: i32 = 10;
         const SPACING: i32 = 6;
         const LABEL_FONT_SIZE: i32 = 6;
         const VALUE_FONT_SIZE: i32 = 16;
+        const VALUE_FONT_WIDTH: i32 = 8;
+        const HUGE_VALUE_FONT_SIZE: i32 = 32;
+        const HUGE_LABEL_SPACING: i32 = 4;
+        const COLUMN_SPACING: i32 = 8;
+        const COLUMN_ONE_MAX_CHARS: i32 = 6;
 
         let x = MARGIN;
         let y = MARGIN;
+        Text::new("D (km)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        let y = y + LABEL_FONT_SIZE;
+        Text::new(
+            &format!("{:.2}", self.distance / 1000.0),
+            geometry::Point::new(x, y),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("V (km/h)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        let y = y + LABEL_FONT_SIZE;
+        Text::new(
+            &speed.map_or("---".to_string(), |x| {
+                format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
+            }),
+            geometry::Point::new(x, y),
+        )
+        .into_styled(style_large)
+        .draw(target)?;
+
+        let y = y + VALUE_FONT_SIZE + SPACING;
         Text::new("POW (W)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
@@ -204,32 +241,6 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         let y = y + LABEL_FONT_SIZE;
         Text::new(
             &power.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
-
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("CAD (RPM)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
-
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
-
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("HR (BPM)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
-
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
             geometry::Point::new(x, y),
         )
         .into_styled(style_large)
@@ -257,34 +268,24 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         .draw(target)?;
 
         let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("V (km/h)", geometry::Point::new(x, y))
+        Text::new("GPS", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
         let y = y + LABEL_FONT_SIZE;
         Text::new(
-            &speed.map_or("---".to_string(), |x| {
-                format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
-            }),
+            // Must always be 6 characters, so that new values clear the previous
+            &match gps_fix {
+                None => "NO GPS",
+                Some((false, _)) => "NO FIX",
+                Some((true, _)) => "FIX   ",
+            },
             geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("D (km)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
-
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &format!("{:.2}", self.distance / 1000.0),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
-
-        let x = x + 50;
+        let x = x + VALUE_FONT_WIDTH * COLUMN_ONE_MAX_CHARS + COLUMN_SPACING;
         let y = MARGIN;
         Text::new("CURRENT", geometry::Point::new(x, y))
             .into_styled(style_tiny)
@@ -314,21 +315,29 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         .draw(target)?;
 
         let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("GPS", geometry::Point::new(x, y))
+        Text::new("CAD (RPM)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE;
+        let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
         Text::new(
-            // Must always be 6 characters, so that new values clear the previous
-            &match gps_fix {
-                None => "NO GPS",
-                Some((false, _)) => "NO FIX",
-                Some((true, _)) => "FIX   ",
-            },
+            &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
             geometry::Point::new(x, y),
         )
-        .into_styled(style_large)
+        .into_styled(style_huge)
+        .draw(target)?;
+
+        let y = y + HUGE_VALUE_FONT_SIZE + SPACING;
+        Text::new("HR (BPM)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
+
+        let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
+        Text::new(
+            &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+            geometry::Point::new(x, y),
+        )
+        .into_styled(style_huge)
         .draw(target)?;
 
         Rectangle::new(geometry::Point::new(187, 3), geometry::Point::new(193, 9))
