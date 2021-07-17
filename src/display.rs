@@ -190,49 +190,57 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         let speed = self.speed.and_then(none_if_stale);
         let gps_fix = self.gps_fix.and_then(none_if_stale);
 
-        Text::new("POW (W)", geometry::Point::new(8, 8))
+        const MARGIN: i32 = 8;
+        const SPACING: i32 = 6;
+        const LABEL_FONT_SIZE: i32 = 6;
+        const VALUE_FONT_SIZE: i32 = 16;
+
+        let x = MARGIN;
+        let y = MARGIN;
+        Text::new("POW (W)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &power.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(8, 8 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new("CAD (RPM)", geometry::Point::new(8, 8 + 6 + 16 + 2))
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("CAD (RPM)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new(
-            "HR (BPM)",
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2),
-        )
-        .into_styled(style_tiny)
-        .draw(target)?;
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("HR (BPM)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new(
-            "ME (KCAL)",
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2),
-        )
-        .into_styled(style_tiny)
-        .draw(target)?;
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("ME (KCAL)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &format!(
                 "{:04}",
@@ -243,78 +251,74 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
                 ) as u16
             ),
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new(
-            "V (km/h)",
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2),
-        )
-        .into_styled(style_tiny)
-        .draw(target)?;
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("V (km/h)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &speed.map_or("---".to_string(), |x| {
                 format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
             }),
-            geometry::Point::new(8, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new(
-            "D (km)",
-            geometry::Point::new(
-                8,
-                8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2,
-            ),
-        )
-        .into_styled(style_tiny)
-        .draw(target)?;
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("D (km)", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &format!("{:.2}", self.distance / 1000.0),
-            geometry::Point::new(
-                8,
-                8 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6 + 16 + 2 + 6,
-            ),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new("CURRENT", geometry::Point::new(8 + 50, 8))
+        let x = x + 50;
+        let y = MARGIN;
+        Text::new("CURRENT", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &format!("{}", Local::now().format("%T")),
-            geometry::Point::new(8 + 50, 8 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new("ELAPSED", geometry::Point::new(8 + 50, 8 + 6 + 16 + 2))
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("ELAPSED", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             &elapsed_secs.map_or("--:--:--".to_string(), |s| {
                 format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
             }),
-            geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
 
-        Text::new(
-            "GPS",
-            geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6 + 16 + 2),
-        )
-        .into_styled(style_tiny)
-        .draw(target)?;
+        let y = y + VALUE_FONT_SIZE + SPACING;
+        Text::new("GPS", geometry::Point::new(x, y))
+            .into_styled(style_tiny)
+            .draw(target)?;
 
+        let y = y + LABEL_FONT_SIZE;
         Text::new(
             // Must always be 6 characters, so that new values clear the previous
             &match gps_fix {
@@ -322,7 +326,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 Some((false, _)) => "NO FIX",
                 Some((true, _)) => "FIX   ",
             },
-            geometry::Point::new(8 + 50, 8 + 6 + 16 + 2 + 6 + 16 + 2 + 6),
+            geometry::Point::new(x, y),
         )
         .into_styled(style_large)
         .draw(target)?;
