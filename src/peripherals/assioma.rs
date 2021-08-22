@@ -19,7 +19,7 @@ impl<P: Peripheral, C: Central<P> + 'static> Assioma<C, P> {
             None => Ok(None),
             Some(peripheral) => {
                 peripheral.connect()?;
-                println!("Connected to KICKR");
+                println!("Connected to Assioma");
 
                 peripheral.discover_characteristics()?;
                 println!("All characteristics discovered");
