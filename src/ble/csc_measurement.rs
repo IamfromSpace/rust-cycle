@@ -1,3 +1,4 @@
+use crate::ble::revolution_data;
 use crate::ble::revolution_data::RevolutionData;
 use btleplug::api::UUID;
 
@@ -65,7 +66,8 @@ pub fn checked_wheel_rpm_and_new_count(
     // doesn't have wheel data, then we abort.
     let a = crate::utils::sequence_option_option(a.map(|x| x.wheel.as_ref()));
     let b = b.wheel.as_ref();
-    crate::utils::lift_a2_option(a, b, checked_wheel_rpm_and_new_count_rev_data).and_then(|x| x)
+    crate::utils::lift_a2_option(a, b, revolution_data::checked_wheel_rpm_and_new_count)
+        .and_then(|x| x)
 }
 
 pub fn checked_crank_rpm_and_new_count(
@@ -76,75 +78,8 @@ pub fn checked_crank_rpm_and_new_count(
     // doesn't have crank data, then we abort.
     let a = crate::utils::sequence_option_option(a.map(|x| x.crank.as_ref()));
     let b = b.crank.as_ref();
-    crate::utils::lift_a2_option(a, b, checked_crank_rpm_and_new_count_rev_data).and_then(|x| x)
-}
-
-// TODO: How to better handle overflow when managing raw/decoded data
-fn checked_crank_rpm_and_new_count_rev_data(
-    a: Option<&RevolutionData>,
-    b: &RevolutionData,
-) -> Option<(f64, u32)> {
-    let duration = checked_duration(a, b);
-    if duration == 0.0 {
-        None
-    } else {
-        let a_revolution_count = a.map_or(0, |x| x.revolution_count);
-        let new_revolutions = if b.revolution_count > a_revolution_count {
-            b.revolution_count - a_revolution_count
-        } else {
-            0x10000 + b.revolution_count - a_revolution_count
-        };
-
-        let rpm = new_revolutions as f64 * 60.0 / duration;
-
-        // This appears to be a world record, and videos of 260 are completely insane.
-        // TODO: is it worth still reporting new_revolutions?
-        if rpm > 271.0 {
-            None
-        } else {
-            Some((rpm, new_revolutions))
-        }
-    }
-}
-
-fn checked_wheel_rpm_and_new_count_rev_data(
-    a: Option<&RevolutionData>,
-    b: &RevolutionData,
-) -> Option<(f64, u32)> {
-    let duration = checked_duration(a, b);
-    if duration == 0.0 {
-        None
-    } else {
-        let a_revolution_count = a.map_or(0, |x| x.revolution_count);
-        // It's not really feasible for wheels to overflow, this is in the billions of meters.
-        if b.revolution_count > a_revolution_count {
-            let new_revolutions = b.revolution_count - a_revolution_count;
-
-            let rpm = new_revolutions as f64 * 60.0 / duration;
-
-            // This is just above the current world record from the AeroVelo Eta at an absolutely
-            // mind-boggling 144kmh (with thin 650c tires).
-            // TODO: is it worth still reporting new_revolutions?
-            if rpm > 1250.0 {
-                None
-            } else {
-                Some((rpm, new_revolutions))
-            }
-        } else {
-            // This indicates a reset, so we instead assume the two events are not connected and
-            // there is no previous.
-            checked_wheel_rpm_and_new_count_rev_data(None, b)
-        }
-    }
-}
-
-fn checked_duration(a: Option<&RevolutionData>, b: &RevolutionData) -> f64 {
-    let a_last_revolution_event_time = a.map_or(0.0, |x| x.last_revolution_event_time);
-    if b.last_revolution_event_time >= a_last_revolution_event_time {
-        b.last_revolution_event_time - a_last_revolution_event_time
-    } else {
-        0b1000000 as f64 + b.last_revolution_event_time - a_last_revolution_event_time
-    }
+    crate::utils::lift_a2_option(a, b, revolution_data::checked_crank_rpm_and_new_count)
+        .and_then(|x| x)
 }
 
 #[cfg(test)]
