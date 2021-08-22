@@ -3,6 +3,7 @@ use btleplug::Result;
 use std::{marker::PhantomData, thread, time::Duration};
 
 pub const MEASURE_UUID: UUID = UUID::B16(0x2A63);
+pub const CONTROL_POINT_UUID: UUID = UUID::B16(0x2A66);
 
 pub struct Assioma<C: Central<P>, P: Peripheral> {
     peripheral: P,
@@ -32,6 +33,14 @@ impl<P: Peripheral, C: Central<P> + 'static> Assioma<C, P> {
 
                 peripheral.subscribe(&power_measurement)?;
                 println!("Subscribed to power measure");
+
+                let control_point = peripheral
+                    .characteristics()
+                    .into_iter()
+                    .find(|c| c.uuid == CONTROL_POINT_UUID)
+                    .unwrap();
+
+                println!("{:?}", peripheral.request(&control_point, &[5]));
 
                 let central_for_disconnects = central.clone();
                 central.on_event(Box::new(move |evt| {
