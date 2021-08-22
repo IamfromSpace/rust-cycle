@@ -1,3 +1,4 @@
+use crate::ble::revolution_data;
 use crate::ble::revolution_data::RevolutionData;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -105,6 +106,30 @@ pub fn parse_cycling_power_measurement(data: &Vec<u8>) -> CyclingPowerMeasuremen
             None
         },
     }
+}
+
+pub fn checked_wheel_rpm_and_new_count(
+    a: Option<&CyclingPowerMeasurement>,
+    b: &CyclingPowerMeasurement,
+) -> Option<(f64, u32)> {
+    // If we don't have previous measurement, then continue, but if we have a previous, but it
+    // doesn't have wheel data, then we abort.
+    let a = crate::utils::sequence_option_option(a.map(|x| x.wheel_revolution_data.as_ref()));
+    let b = b.wheel_revolution_data.as_ref();
+    crate::utils::lift_a2_option(a, b, revolution_data::checked_wheel_rpm_and_new_count)
+        .and_then(|x| x)
+}
+
+pub fn checked_crank_rpm_and_new_count(
+    a: Option<&CyclingPowerMeasurement>,
+    b: &CyclingPowerMeasurement,
+) -> Option<(f64, u32)> {
+    // If we don't have previous measurement, then continue, but if we have a previous, but it
+    // doesn't have crank data, then we abort.
+    let a = crate::utils::sequence_option_option(a.map(|x| x.crank_revolution_data.as_ref()));
+    let b = b.crank_revolution_data.as_ref();
+    crate::utils::lift_a2_option(a, b, revolution_data::checked_crank_rpm_and_new_count)
+        .and_then(|x| x)
 }
 
 #[cfg(test)]
