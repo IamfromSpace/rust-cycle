@@ -24,6 +24,9 @@ impl<P: Peripheral, C: Central<P> + 'static> Assioma<C, P> {
                 peripheral.discover_characteristics()?;
                 println!("All characteristics discovered");
 
+                // TODO: For debugging purposes, remove later.
+                println!("{:?}", peripheral.characteristics());
+
                 let power_measurement = peripheral
                     .characteristics()
                     .into_iter()
