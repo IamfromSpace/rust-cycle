@@ -149,35 +149,35 @@ pub fn main() {
             NotExit(x) => x,
         };
 
-        let (use_hr, use_cadence, location) = match workout_name {
-            "100W" => (false, false, Location::Indoor(single_value(100))),
-            "Outdoor" => (true, true, Location::Outdoor),
-            "145W" => (true, true, Location::Indoor(single_value(145))),
-            "150W" => (true, true, Location::Indoor(single_value(150))),
-            "155W" => (true, true, Location::Indoor(single_value(155))),
-            "160W" => (true, true, Location::Indoor(single_value(160))),
-            "165W" => (true, true, Location::Indoor(single_value(165))),
-            "170W" => (true, true, Location::Indoor(single_value(170))),
-            "175W" => (true, true, Location::Indoor(single_value(175))),
-            "180W" => (true, true, Location::Indoor(single_value(180))),
-            "185W" => (true, true, Location::Indoor(single_value(185))),
-            "Ramp" => (true, true, Location::Indoor(ramp_test(120))),
-            "1st Big Interval" => (
-                true,
-                true,
-                Location::Indoor(create_big_start_interval(
-                    (Duration::from_secs(300), 140),
-                    14,
-                    Duration::from_secs(150),
-                    (Duration::from_secs(60), 320),
-                    (Duration::from_secs(90), 120),
-                    Some(160),
-                )),
-            ),
-            "P/H/70W" => (true, false, Location::Indoor(single_value(70))),
-            "P/H/Ramp" => (true, false, Location::Indoor(ramp_test(90))),
-            "GPS Only" => (false, false, Location::Outdoor),
-            "GPS & HR" => (true, false, Location::Outdoor),
+        // Nathan specific peripherals
+        let use_hr = workout_name != "100W";
+        let use_cadence = workout_name != "100W";
+
+        let location = match workout_name {
+            "100W" => Location::Indoor(single_value(100)),
+            "Outdoor" => Location::Outdoor,
+            "145W" => Location::Indoor(single_value(145)),
+            "150W" => Location::Indoor(single_value(150)),
+            "155W" => Location::Indoor(single_value(155)),
+            "160W" => Location::Indoor(single_value(160)),
+            "165W" => Location::Indoor(single_value(165)),
+            "170W" => Location::Indoor(single_value(170)),
+            "175W" => Location::Indoor(single_value(175)),
+            "180W" => Location::Indoor(single_value(180)),
+            "185W" => Location::Indoor(single_value(185)),
+            "Ramp" => Location::Indoor(ramp_test(120)),
+            "1st Big Interval" => Location::Indoor(create_big_start_interval(
+                (Duration::from_secs(300), 140),
+                14,
+                Duration::from_secs(150),
+                (Duration::from_secs(60), 320),
+                (Duration::from_secs(90), 120),
+                Some(160),
+            )),
+            "P/H/70W" => Location::Indoor(single_value(70)),
+            "P/H/Ramp" => Location::Indoor(ramp_test(90)),
+            "GPS Only" => Location::Outdoor,
+            "GPS & HR" => Location::Outdoor,
             _ => panic!("Unexpected workout_name!"),
         };
 
