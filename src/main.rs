@@ -22,12 +22,15 @@ use ble::{
         checked_crank_rpm_and_new_count, checked_wheel_rpm_and_new_count, parse_csc_measurement,
         CscMeasurement,
     },
+    cycling_power_measurement,
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
 use btleplug::api::Central;
 use btleplug::bluez::manager::Manager;
-use peripherals::{cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed};
+use peripherals::{
+    assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
+};
 use std::collections::BTreeSet;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -151,7 +154,10 @@ pub fn main() {
 
         // Nathan specific peripherals
         let use_hr = workout_name != "100W";
-        let use_cadence = workout_name != "100W";
+        let use_assioma = workout_name != "100W";
+
+        // Zenia specific peripherals
+        let use_cadence = workout_name == "100W";
 
         let location = match workout_name {
             "100W" => Location::Indoor(single_value(100)),
@@ -332,9 +338,15 @@ pub fn main() {
                         .and_then(|x| x.new_accumulated_torque(&power_reading));
                     if let Some(new_acc_torque) = o_new_acc_torque {
                         acc_torque = acc_torque + new_acc_torque;
-                        display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                        //TODO: The display should be able to accept a "wheel" and "crank" external
+                        //energy field separately.  Right now for testing we just disable the
+                        //KICKR's output to the display.
+                        //display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
                     }
-                    display.update_power(Some(power_reading.instantaneous_power));
+                    //TODO: The display should be able to accept a "wheel" and "crank" power field
+                    //separately.  Right now for testing we just disable the KICKR's output to the
+                    //display.
+                    //display.update_power(Some(power_reading.instantaneous_power));
                     o_last_power_reading = Some(power_reading);
                     let elapsed = start.elapsed();
                     db_kickr
@@ -365,6 +377,56 @@ pub fn main() {
 
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
             Some((workout_handle, kickr))
+        } else {
+            None
+        };
+
+        // We need to bind to keep our assioma peripheral until the end of the scope
+        let _assioma = if use_assioma {
+            // Connect to Cadence meter and print its raw notifications
+            let assioma = or_crash_with_msg(
+                &display_mutex,
+                Assioma::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to Assioma Pedals!",
+            );
+
+            let mut o_last_power_measure: Option<CyclingPowerMeasurement> = None;
+            let mut crank_count = 0;
+            let mut acc_torque = 0.0;
+            let db_power_measure = db.clone();
+            let display_mutex_assioma = display_mutex.clone();
+            assioma.on_notification(Box::new(move |n| {
+                let elapsed = start.elapsed();
+                let power_measure = parse_cycling_power_measurement(&n.value);
+                let r = cycling_power_measurement::checked_crank_rpm_and_new_count(
+                    o_last_power_measure.as_ref(),
+                    &power_measure,
+                );
+                let mut display = display_mutex_assioma.lock().unwrap();
+                if let Some((rpm, new_crank_count)) = r {
+                    crank_count = crank_count + new_crank_count;
+                    display.update_cadence(Some(rpm as u8));
+                    display.update_crank_count(crank_count);
+                }
+                let o_new_acc_torque = o_last_power_measure
+                    .as_ref()
+                    .and_then(|x| x.new_accumulated_torque(&power_measure));
+                if let Some(new_acc_torque) = o_new_acc_torque {
+                    acc_torque = acc_torque + new_acc_torque;
+                    display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                }
+                display.update_power(Some(power_measure.instantaneous_power));
+                o_last_power_measure = Some(power_measure);
+                db_power_measure
+                    .insert(
+                        session_key,
+                        elapsed,
+                        telemetry_db::Notification::Ble((n.uuid, n.value)),
+                    )
+                    .unwrap();
+            }));
+            lock_and_show(&display_mutex, &"Setup Complete for Assioma Pedals!");
+            Some(assioma)
         } else {
             None
         };
