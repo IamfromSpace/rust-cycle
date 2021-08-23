@@ -260,14 +260,17 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
             .into_styled(style_tiny)
             .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE;
+        let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
         Text::new(
             &power.map_or("---   ".to_string(), |x| format!("{:03}", x.0)),
             geometry::Point::new(x, y),
         )
-        .into_styled(style_large)
+        .into_styled(style_huge)
         .draw(target)?;
 
+        // TODO: This doesn't seem to actually track with Assioma, but it might
+        // be more interesting than the current time.
+        /*
         let y = y + VALUE_FONT_SIZE + SPACING;
         Text::new("ME (KCAL)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
@@ -292,8 +295,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         )
         .into_styled(style_large)
         .draw(target)?;
+        */
 
-        let y = y + VALUE_FONT_SIZE + SPACING;
+        let y = y + HUGE_VALUE_FONT_SIZE + SPACING;
         Text::new("GPS", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
