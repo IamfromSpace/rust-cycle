@@ -349,13 +349,17 @@ pub fn main() {
                     //display.update_power(Some(power_reading.instantaneous_power));
                     o_last_power_reading = Some(power_reading);
                     let elapsed = start.elapsed();
-                    db_kickr
-                        .insert(
-                            session_key,
-                            elapsed,
-                            telemetry_db::Notification::Ble((n.uuid, n.value)),
-                        )
-                        .unwrap();
+                //TODO: Not exactly sure how to handle having _both_ power captures for when it
+                //comes to generating fit files.
+                /*
+                db_kickr
+                    .insert(
+                        session_key,
+                        elapsed,
+                        telemetry_db::Notification::Ble((n.uuid, n.value)),
+                    )
+                    .unwrap();
+                */
                 } else {
                     println!("Non-power notification from kickr: {:?}", n);
                 }
