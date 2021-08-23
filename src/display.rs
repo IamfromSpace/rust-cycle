@@ -256,13 +256,13 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         .draw(target)?;
 
         let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("POW (W)", geometry::Point::new(x, y))
+        Text::new("CAD (RPM)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
         let y = y + LABEL_FONT_SIZE;
         Text::new(
-            &power.map_or("---   ".to_string(), |x| format!("{:03}", x.0)),
+            &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
             geometry::Point::new(x, y),
         )
         .into_styled(style_large)
@@ -341,13 +341,13 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         .draw(target)?;
 
         let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("CAD (RPM)", geometry::Point::new(x, y))
+        Text::new("POW (W)", geometry::Point::new(x, y))
             .into_styled(style_tiny)
             .draw(target)?;
 
         let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
         Text::new(
-            &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+            &power.map_or("---   ".to_string(), |x| format!("{:03}", x.0)),
             geometry::Point::new(x, y),
         )
         .into_styled(style_huge)
