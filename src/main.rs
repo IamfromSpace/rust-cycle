@@ -665,7 +665,7 @@ fn db_session_to_fit_records(
     db: &telemetry_db::TelemetryDb,
     session_key: u64,
 ) -> impl Iterator<Item = sled::Result<fit::FitRecord>> + '_ {
-    let mut last_power: Option<u16> = None;
+    let mut last_power_measure: Option<CyclingPowerMeasurement> = None;
     let mut last_cadence_csc_measurement: Option<CscMeasurement> = None;
     let mut last_wheel_csc_measurement: Option<CscMeasurement> = None;
     let mut wheel_count = 0;
@@ -693,7 +693,9 @@ fn db_session_to_fit_records(
                             r
                         } else {
                             if let None = r.power {
-                                r.power = last_power;
+                                r.power = last_power_measure
+                                    .as_ref()
+                                    .map(|p| p.instantaneous_power as u16);
                             }
                             finished_record = Some(r);
                             empty_record(seconds_since_unix_epoch)
@@ -713,9 +715,18 @@ fn db_session_to_fit_records(
                         r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     }
                     telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
-                        let p = parse_cycling_power_measurement(&v).instantaneous_power as u16;
-                        last_power = Some(p);
-                        r.power = Some(p);
+                        let power_measure = parse_cycling_power_measurement(&v);
+                        r.power = Some(power_measure.instantaneous_power as u16);
+                        let o_crank_rpm =
+                            cycling_power_measurement::checked_crank_rpm_and_new_count(
+                                last_power_measure.as_ref(),
+                                &power_measure,
+                            )
+                            .map(|x| x.0);
+                        if let Some(crank_rpm) = o_crank_rpm {
+                            r.cadence = Some(crank_rpm as u8);
+                        }
+                        last_power_measure = Some(power_measure);
                     }
                     telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
                         // TODO: Clean up cloning here that supports crank and wheel
