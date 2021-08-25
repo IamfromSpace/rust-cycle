@@ -71,7 +71,7 @@ impl Display {
     }
 
     pub fn set_page(&mut self, page: Page) {
-        self.workout.page = page;
+        self.workout.set_page(page);
     }
 
     fn add_version(&mut self) {
