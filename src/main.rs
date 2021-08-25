@@ -474,6 +474,28 @@ pub fn main() {
             None
         };
 
+        // TODO: The Combo of Buttons and Display should make up a sort of
+        // "UserInterface" that hides the buttons (this would make using the
+        // simulator much easier, for example).
+        let display_mutex_standard_page = display_mutex.clone();
+        buttons.on_press(
+            buttons::Button::ButtonE,
+            Box::new(move || {
+                let mut display = display_mutex_standard_page.lock().unwrap();
+                display.set_page(display::Page::Standard);
+            }),
+        );
+
+        let display_mutex_power_track_page = display_mutex.clone();
+        buttons.on_press(
+            buttons::Button::ButtonD,
+            Box::new(move || {
+                let mut display = display_mutex_power_track_page.lock().unwrap();
+                // TODO: This should be configurable
+                display.set_page(display::Page::PowerTrack(145));
+            }),
+        );
+
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
         buttons.on_hold(
