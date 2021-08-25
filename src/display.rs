@@ -129,7 +129,7 @@ pub struct WorkoutDisplay {
     power: Option<(i16, Instant)>,
     cadence: Option<(u8, Instant)>,
     heart_rate: Option<(u8, Instant)>,
-    external_energy: f64,
+    external_energy: Option<f64>,
     crank_count: Option<u32>,
     speed: Option<(f32, Instant)>,
     distance: f64,
@@ -143,7 +143,7 @@ impl WorkoutDisplay {
             power: None,
             cadence: None,
             heart_rate: None,
-            external_energy: 0.0,
+            external_energy: None,
             crank_count: None,
             speed: None,
             distance: 0.0,
@@ -165,7 +165,7 @@ impl WorkoutDisplay {
     }
 
     pub fn update_external_energy(&mut self, external_energy: f64) {
-        self.external_energy = external_energy;
+        self.external_energy = Some(external_energy);
     }
 
     pub fn update_crank_count(&mut self, crank_count: u32) {
@@ -277,12 +277,12 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         Text::new(
             // We only show this if we've gotten a power reading before (but we
             // don't care if it's stale).
-            &self.power.map_or("---   ".to_string(), |_| {
+            &self.external_energy.map_or("---   ".to_string(), |e| {
                 format!(
                     "{:04}",
                     // We assume 80rpm unless otherwise known
                     metabolic_cost_in_kcal(
-                        self.external_energy,
+                        e,
                         self.crank_count
                             .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
                     ) as u16
