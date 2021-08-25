@@ -20,7 +20,6 @@ use xi_unicode::LineBreakIterator;
 pub struct Display {
     memory_lcd: MemoryLcd,
     workout: WorkoutDisplay,
-    has_rendered: bool,
     version: String,
 }
 
@@ -31,7 +30,6 @@ impl Display {
         Display {
             memory_lcd,
             workout,
-            has_rendered: false,
             version: version,
         }
     }
@@ -91,7 +89,6 @@ impl Display {
 
     pub fn render_msg(&mut self, s: &str) {
         self.memory_lcd.clear(BinaryColor::Off).unwrap();
-        self.has_rendered = false;
         MsgDisplay::new(s).draw(&mut self.memory_lcd).unwrap();
         self.add_version();
         #[cfg(feature = "simulator")]
@@ -103,7 +100,6 @@ impl Display {
         // over draw like rendering does, it not safe to use the
         // same has_rendered approach.
         self.memory_lcd.clear(BinaryColor::Off).unwrap();
-        self.has_rendered = false;
         OptionDisplay::new(&options[..])
             .draw(&mut self.memory_lcd)
             .unwrap();
@@ -113,12 +109,8 @@ impl Display {
     }
 
     pub fn render(&mut self) {
-        // We only clear the screen if it's been drawing other stuff.
-        // This prevents flashing or the need to frame sync.
-        if !self.has_rendered {
-            self.memory_lcd.clear(BinaryColor::Off).unwrap();
-            self.has_rendered = true;
-        }
+        // TODO: Need a better strategy than clearing to prevent flickering
+        self.memory_lcd.clear(BinaryColor::Off).unwrap();
         self.workout.clone().draw(&mut self.memory_lcd).unwrap();
         self.add_version();
         // TODO: Make the simulator act more like the real deal, and don't
@@ -417,21 +409,6 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
                 let y_scale = 2.0;
                 let graph_width = width - (CHAR_COUNT * CHAR_WIDTH + 2 * SPACING);
-
-                // Clear the screen
-                // TODO: We can do this smarter by calculating the actual area
-                // of the graph
-                Rectangle::new(
-                    geometry::Point::new(0, 0),
-                    geometry::Point::new(width as i32, height as i32),
-                )
-                .into_styled(
-                    PrimitiveStyleBuilder::new()
-                        .fill_color(BinaryColor::Off)
-                        .stroke_width(0)
-                        .build(),
-                )
-                .draw(target)?;
 
                 let mut draw_line = |(a1, a2), (b1, b2), w| {
                     Line::new(geometry::Point::new(a1, a2), geometry::Point::new(b1, b2))
