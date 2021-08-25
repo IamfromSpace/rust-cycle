@@ -9,7 +9,7 @@ use embedded_graphics::{
     geometry,
     geometry::Size,
     pixelcolor::BinaryColor,
-    primitives::{rectangle::Rectangle, Primitive},
+    primitives::{rectangle::Rectangle, Line, Primitive},
     style::{PrimitiveStyleBuilder, TextStyleBuilder},
     transform::Transform,
     DrawTarget,
@@ -72,6 +72,10 @@ impl Display {
         self.workout.set_start(start);
     }
 
+    pub fn set_page(&mut self, page: Page) {
+        self.workout.page = page;
+    }
+
     fn add_version(&mut self) {
         // TODO: The position here shouldn't be hard coded
         Text::new(&self.version, geometry::Point::new(10, 156))
@@ -124,9 +128,16 @@ impl Display {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum Page {
+    Standard,
+    PowerTrack(i16),
+}
+
 #[derive(Clone)]
 pub struct WorkoutDisplay {
     power: Option<(i16, Instant)>,
+    power_history: ([i16; 60], usize),
     cadence: Option<(u8, Instant)>,
     heart_rate: Option<(u8, Instant)>,
     external_energy: Option<f64>,
@@ -135,12 +146,14 @@ pub struct WorkoutDisplay {
     distance: f64,
     gps_fix: Option<(bool, Instant)>,
     start_instant: Option<Instant>,
+    page: Page,
 }
 
 impl WorkoutDisplay {
     pub fn new() -> WorkoutDisplay {
         WorkoutDisplay {
             power: None,
+            power_history: ([0; 60], 0),
             cadence: None,
             heart_rate: None,
             external_energy: None,
@@ -149,11 +162,15 @@ impl WorkoutDisplay {
             distance: 0.0,
             gps_fix: None,
             start_instant: None,
+            page: Page::Standard,
         }
     }
 
     pub fn update_power(&mut self, power: Option<i16>) {
         self.power = power.map(|x| (x, Instant::now()));
+        // TODO: Interpolate!
+        self.power_history.1 = (self.power_history.1 + 1) % 60;
+        self.power_history.0[self.power_history.1] = power.unwrap_or(0);
     }
 
     pub fn update_cadence(&mut self, cadence: Option<u8>) {
@@ -186,6 +203,10 @@ impl WorkoutDisplay {
 
     pub fn set_start(&mut self, start: Option<Instant>) {
         self.start_instant = start;
+    }
+
+    pub fn set_page(&mut self, page: Page) {
+        self.page = page;
     }
 }
 
@@ -222,160 +243,270 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         const COLUMN_SPACING: i32 = 8;
         const COLUMN_ONE_MAX_CHARS: i32 = 6;
 
-        let x = MARGIN;
-        let y = MARGIN;
-        Text::new("D (km)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
+        match self.page {
+            Page::Standard => {
+                let x = MARGIN;
+                let y = MARGIN;
+                Text::new("D (km)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            // We only show this if we've gotten a speed measurement before (but
-            // we don't care if it's stale).
-            &self.speed.map_or("---   ".to_string(), |_| {
-                format!("{:.2}", self.distance / 1000.0)
-            }),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
-
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("V (km/h)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
-
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &speed.map_or("---   ".to_string(), |x| {
-                format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
-            }),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
-
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("CAD (RPM)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
-
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
-
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("ME (KCAL)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
-
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            // We only show this if we've gotten a power reading before (but we
-            // don't care if it's stale).
-            &self.external_energy.map_or("---   ".to_string(), |e| {
-                format!(
-                    "{:04}",
-                    // We assume 80rpm unless otherwise known
-                    metabolic_cost_in_kcal(
-                        e,
-                        self.crank_count
-                            .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
-                    ) as u16
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    // We only show this if we've gotten a speed measurement before (but
+                    // we don't care if it's stale).
+                    &self.speed.map_or("---   ".to_string(), |_| {
+                        format!("{:.2}", self.distance / 1000.0)
+                    }),
+                    geometry::Point::new(x, y),
                 )
-            }),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
+                .into_styled(style_large)
+                .draw(target)?;
 
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("GPS", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("V (km/h)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            // Must always be 6 characters, so that new values clear the previous
-            &match gps_fix {
-                None => "NO GPS",
-                Some((false, _)) => "NO FIX",
-                Some((true, _)) => "FIX   ",
-            },
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    &speed.map_or("---   ".to_string(), |x| {
+                        format!("{:.2}", x.0 * 60.0 * 60.0 / 1000.0)
+                    }),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
 
-        let x = x + VALUE_FONT_WIDTH * COLUMN_ONE_MAX_CHARS + COLUMN_SPACING;
-        let y = MARGIN;
-        Text::new("CURRENT", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("CAD (RPM)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &format!("{}", Local::now().format("%T")),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
 
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("ELAPSED", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("ME (KCAL)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE;
-        Text::new(
-            &elapsed_secs.map_or("--:--:--".to_string(), |s| {
-                format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
-            }),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_large)
-        .draw(target)?;
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    // We only show this if we've gotten a power reading before (but we
+                    // don't care if it's stale).
+                    &self.external_energy.map_or("---   ".to_string(), |e| {
+                        format!(
+                            "{:04}",
+                            // We assume 80rpm unless otherwise known
+                            metabolic_cost_in_kcal(
+                                e,
+                                self.crank_count
+                                    .unwrap_or((elapsed_secs.unwrap_or(0) * 80 / 60) as u32)
+                            ) as u16
+                        )
+                    }),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
 
-        let y = y + VALUE_FONT_SIZE + SPACING;
-        Text::new("POW (W)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("GPS", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
-        Text::new(
-            &power.map_or("---   ".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_huge)
-        .draw(target)?;
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    // Must always be 6 characters, so that new values clear the previous
+                    &match gps_fix {
+                        None => "NO GPS",
+                        Some((false, _)) => "NO FIX",
+                        Some((true, _)) => "FIX   ",
+                    },
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
 
-        let y = y + HUGE_VALUE_FONT_SIZE + SPACING;
-        Text::new("HR (BPM)", geometry::Point::new(x, y))
-            .into_styled(style_tiny)
-            .draw(target)?;
+                let x = x + VALUE_FONT_WIDTH * COLUMN_ONE_MAX_CHARS + COLUMN_SPACING;
+                let y = MARGIN;
+                Text::new("CURRENT", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
-        Text::new(
-            &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-            geometry::Point::new(x, y),
-        )
-        .into_styled(style_huge)
-        .draw(target)?;
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    &format!("{}", Local::now().format("%T")),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
 
-        Rectangle::new(geometry::Point::new(187, 3), geometry::Point::new(193, 9))
-            .into_styled(
-                PrimitiveStyleBuilder::new()
-                    .fill_color(BinaryColor::On)
-                    .stroke_width(0)
-                    .build(),
-            )
-            .draw(target)?;
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("ELAPSED", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
 
-        Ok(())
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(
+                    &elapsed_secs.map_or("--:--:--".to_string(), |s| {
+                        format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
+                    }),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
+
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("POW (W)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
+
+                let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
+                Text::new(
+                    &power.map_or("---   ".to_string(), |x| format!("{:03}", x.0)),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_huge)
+                .draw(target)?;
+
+                let y = y + HUGE_VALUE_FONT_SIZE + SPACING;
+                Text::new("HR (BPM)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
+
+                let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
+                Text::new(
+                    &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
+                    geometry::Point::new(x, y),
+                )
+                .into_styled(style_huge)
+                .draw(target)?;
+
+                Rectangle::new(geometry::Point::new(187, 3), geometry::Point::new(193, 9))
+                    .into_styled(
+                        PrimitiveStyleBuilder::new()
+                            .fill_color(BinaryColor::On)
+                            .stroke_width(0)
+                            .build(),
+                    )
+                    .draw(target)?;
+
+                Ok(())
+            }
+            Page::PowerTrack(goal) => {
+                let Size { height, width } = target.size();
+
+                // There are three points on the graph drawn "accurately:" the
+                // goal, and then two "even boundaries."  Within the boundaries,
+                // the error is exaggerated so it is more easily seen, outside
+                // of the boundaries, the error is understated, since the level
+                // of error is less meaningful.
+                const EVEN_BOUNDARY: i16 = 10;
+
+                const CHAR_COUNT: u32 = 3;
+                const CHAR_WIDTH: u32 = 6;
+                const CHAR_HEIGHT: u32 = 6;
+                const SPACING: u32 = 3;
+
+                let y_scale = 2.0;
+                let graph_width = width - (CHAR_COUNT * CHAR_WIDTH + 2 * SPACING);
+
+                // Clear the screen
+                // TODO: We can do this smarter by calculating the actual area
+                // of the graph
+                Rectangle::new(
+                    geometry::Point::new(0, 0),
+                    geometry::Point::new(width as i32, height as i32),
+                )
+                .into_styled(
+                    PrimitiveStyleBuilder::new()
+                        .fill_color(BinaryColor::Off)
+                        .stroke_width(0)
+                        .build(),
+                )
+                .draw(target)?;
+
+                let mut draw_line = |(a1, a2), (b1, b2), w| {
+                    Line::new(geometry::Point::new(a1, a2), geometry::Point::new(b1, b2))
+                        .into_styled(
+                            PrimitiveStyleBuilder::new()
+                                .stroke_color(BinaryColor::On)
+                                .stroke_width(w)
+                                .build(),
+                        )
+                        .draw(target)
+                };
+
+                // Our reference line
+                draw_line(
+                    (0, (height / 2) as i32),
+                    ((graph_width - 1) as i32, (height / 2) as i32),
+                    1,
+                )?;
+
+                // We show 30s unless we simply don't have the pixels to do so
+                // (and then we show all that we can).  We use a fixed integer
+                // pixel width and display extra time if needed.
+                let second_width = std::cmp::max(graph_width / 30, 1);
+
+                let mut x = graph_width - second_width / 2;
+                for i in ((self.power_history.1 + 1)..(self.power_history.1 + 61)).rev() {
+                    let p = self.power_history.0[i % 60];
+                    let delta = y_scale
+                        * EVEN_BOUNDARY as f64
+                        * (((p - goal) as f64).abs() / EVEN_BOUNDARY as f64).powf(1.0 / 3.0)
+                        * (if p > goal { -1.0 } else { 1.0 });
+                    draw_line(
+                        (x as i32, (height / 2) as i32),
+                        (x as i32, (height / 2) as i32 + delta as i32),
+                        second_width,
+                    )?;
+                    match x.checked_sub(second_width) {
+                        Some(new_x) => x = new_x,
+                        None => break,
+                    };
+                }
+
+                Text::new(
+                    &goal.to_string(),
+                    geometry::Point::new(
+                        (graph_width + SPACING) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2,
+                    ),
+                )
+                .into_styled(style_tiny)
+                .draw(target)?;
+
+                Text::new(
+                    &(goal + EVEN_BOUNDARY).to_string(),
+                    geometry::Point::new(
+                        (graph_width + SPACING) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2 - (y_scale * EVEN_BOUNDARY as f64) as i32,
+                    ),
+                )
+                .into_styled(style_tiny)
+                .draw(target)?;
+
+                Text::new(
+                    &(goal - EVEN_BOUNDARY).to_string(),
+                    geometry::Point::new(
+                        (graph_width + SPACING) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2 + (y_scale * EVEN_BOUNDARY as f64) as i32,
+                    ),
+                )
+                .into_styled(style_tiny)
+                .draw(target)?;
+
+                Ok(())
+            }
+        }
     }
 }
 
