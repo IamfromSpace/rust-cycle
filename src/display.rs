@@ -225,6 +225,15 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
         let speed = self.speed.and_then(none_if_stale);
         let gps_fix = self.gps_fix.and_then(none_if_stale);
 
+        // We only show this if we've gotten a speed measurement before (but we
+        // don't care if it's stale).
+        let distance_str = &self.speed.map_or("---   ".to_string(), |_| {
+            format!("{:.2}", self.distance / 1000.0)
+        });
+        let hr_str = heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0));
+        let elapsed_str = format!("{}", Local::now().format("%T"));
+        let cadence_str = cadence.map_or("---".to_string(), |x| format!("{:03}", x.0));
+
         const MARGIN: i32 = 10;
         const SPACING: i32 = 6;
         const LABEL_FONT_SIZE: i32 = 6;
@@ -244,16 +253,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .draw(target)?;
 
                 let y = y + LABEL_FONT_SIZE;
-                Text::new(
-                    // We only show this if we've gotten a speed measurement before (but
-                    // we don't care if it's stale).
-                    &self.speed.map_or("---   ".to_string(), |_| {
-                        format!("{:.2}", self.distance / 1000.0)
-                    }),
-                    geometry::Point::new(x, y),
-                )
-                .into_styled(style_large)
-                .draw(target)?;
+                Text::new(&distance_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
 
                 let y = y + VALUE_FONT_SIZE + SPACING;
                 Text::new("V (km/h)", geometry::Point::new(x, y))
@@ -276,12 +278,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .draw(target)?;
 
                 let y = y + LABEL_FONT_SIZE;
-                Text::new(
-                    &cadence.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-                    geometry::Point::new(x, y),
-                )
-                .into_styled(style_large)
-                .draw(target)?;
+                Text::new(&cadence_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
 
                 let y = y + VALUE_FONT_SIZE + SPACING;
                 Text::new("ME (KCAL)", geometry::Point::new(x, y))
@@ -333,12 +332,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .draw(target)?;
 
                 let y = y + LABEL_FONT_SIZE;
-                Text::new(
-                    &format!("{}", Local::now().format("%T")),
-                    geometry::Point::new(x, y),
-                )
-                .into_styled(style_large)
-                .draw(target)?;
+                Text::new(&elapsed_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
 
                 let y = y + VALUE_FONT_SIZE + SPACING;
                 Text::new("ELAPSED", geometry::Point::new(x, y))
@@ -374,12 +370,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .draw(target)?;
 
                 let y = y + LABEL_FONT_SIZE + HUGE_LABEL_SPACING;
-                Text::new(
-                    &heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0)),
-                    geometry::Point::new(x, y),
-                )
-                .into_styled(style_huge)
-                .draw(target)?;
+                Text::new(&hr_str, geometry::Point::new(x, y))
+                    .into_styled(style_huge)
+                    .draw(target)?;
 
                 Rectangle::new(geometry::Point::new(187, 3), geometry::Point::new(193, 9))
                     .into_styled(
@@ -404,10 +397,13 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 const CHAR_COUNT: u32 = 3;
                 const CHAR_WIDTH: u32 = 6;
                 const CHAR_HEIGHT: u32 = 6;
-                const SPACING: u32 = 3;
+                const GRAPH_SPACING: u32 = 3;
 
-                let y_scale = 20.0;
-                let graph_width = width - (CHAR_COUNT * CHAR_WIDTH + 2 * SPACING);
+                // TODO: determine graph scale and center automatically based on
+                // available area.
+                let y_scale = 22.0;
+                let graph_center_y = (height / 2) as i32 + 24;
+                let graph_width = width - (CHAR_COUNT * CHAR_WIDTH + 2 * GRAPH_SPACING);
 
                 let mut draw_line = |(a1, a2), (b1, b2), w| {
                     Line::new(geometry::Point::new(a1, a2), geometry::Point::new(b1, b2))
@@ -422,10 +418,10 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
                 // Max Value Line
                 draw_line(
-                    (0, (height / 2) as i32 - (y_scale * 2.0) as i32),
+                    (0, graph_center_y - (y_scale * 2.0) as i32),
                     (
                         (graph_width - 1) as i32,
-                        (height / 2) as i32 - (y_scale * 2.0) as i32,
+                        graph_center_y - (y_scale * 2.0) as i32,
                     ),
                     1,
                 )?;
@@ -435,17 +431,17 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 // line sandwiched between two distinct graphs.
                 // Our reference line
                 draw_line(
-                    (0, (height / 2) as i32),
-                    ((graph_width - 1) as i32, (height / 2) as i32),
+                    (0, graph_center_y),
+                    ((graph_width - 1) as i32, graph_center_y),
                     1,
                 )?;
 
                 // Min Value Line
                 draw_line(
-                    (0, (height / 2) as i32 + (y_scale * 2.0) as i32),
+                    (0, graph_center_y + (y_scale * 2.0) as i32),
                     (
                         (graph_width - 1) as i32,
-                        (height / 2) as i32 + (y_scale * 2.0) as i32,
+                        graph_center_y + (y_scale * 2.0) as i32,
                     ),
                     1,
                 )?;
@@ -467,10 +463,10 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         })
                         * (if p > goal { -1.0 } else { 1.0 });
                     draw_line(
-                        (x as i32, (height / 2) as i32),
+                        (x as i32, graph_center_y),
                         (
                             x as i32,
-                            (height / 2) as i32
+                            graph_center_y
                                 + std::cmp::min(
                                     std::cmp::max(len as i32, (2.0 * -y_scale) as i32),
                                     (2.0 * y_scale) as i32,
@@ -487,8 +483,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 Text::new(
                     &goal.to_string(),
                     geometry::Point::new(
-                        (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2,
+                        (graph_width + GRAPH_SPACING) as i32,
+                        graph_center_y - CHAR_HEIGHT as i32 / 2,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -497,8 +493,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 Text::new(
                     &(goal + LINEAR_BOUNDARY * LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
-                        (graph_width + SPACING) as i32,
-                        ((height - CHAR_HEIGHT) as i32) / 2 - (2.0 * y_scale) as i32,
+                        (graph_width + GRAPH_SPACING) as i32,
+                        graph_center_y - CHAR_HEIGHT as i32 / 2 - (2.0 * y_scale) as i32,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -507,8 +503,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 Text::new(
                     &(goal + LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
-                        (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2 - y_scale as i32,
+                        (graph_width + GRAPH_SPACING) as i32,
+                        graph_center_y - CHAR_HEIGHT as i32 / 2 - y_scale as i32,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -517,8 +513,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 Text::new(
                     &(goal - LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
-                        (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2 + y_scale as i32,
+                        (graph_width + GRAPH_SPACING) as i32,
+                        graph_center_y - CHAR_HEIGHT as i32 / 2 + y_scale as i32,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -528,12 +524,54 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 Text::new(
                     &(goal - LINEAR_BOUNDARY * LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
-                        (graph_width + SPACING) as i32,
-                        ((height - CHAR_HEIGHT) as i32) / 2 + (2.0 * y_scale) as i32,
+                        (graph_width + GRAPH_SPACING) as i32,
+                        graph_center_y - CHAR_HEIGHT as i32 / 2 + (2.0 * y_scale) as i32,
                     ),
                 )
                 .into_styled(style_tiny)
                 .draw(target)?;
+
+                let x = MARGIN;
+                let y = MARGIN;
+                Text::new("D (km)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
+
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(distance_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
+
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("HR (BPM)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
+
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(&hr_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
+
+                let x = x + VALUE_FONT_WIDTH * COLUMN_ONE_MAX_CHARS + COLUMN_SPACING;
+                let y = MARGIN;
+                Text::new("CURRENT", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
+
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(&elapsed_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
+
+                let y = y + VALUE_FONT_SIZE + SPACING;
+                Text::new("CAD (RPM)", geometry::Point::new(x, y))
+                    .into_styled(style_tiny)
+                    .draw(target)?;
+
+                let y = y + LABEL_FONT_SIZE;
+                Text::new(&cadence_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
 
                 Ok(())
             }
