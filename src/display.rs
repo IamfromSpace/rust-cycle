@@ -568,6 +568,17 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .into_styled(style_tiny)
                     .draw(target)?;
 
+                Text::new(
+                    // Must always be 6 characters, so that new values clear the previous
+                    &match gps_fix {
+                        Some((true, _)) => "",
+                        _ => "!",
+                    },
+                    geometry::Point::new(x + VALUE_FONT_WIDTH * 7, y),
+                )
+                .into_styled(style_large)
+                .draw(target)?;
+
                 let y = y + LABEL_FONT_SIZE;
                 Text::new(&cadence_str, geometry::Point::new(x, y))
                     .into_styled(style_large)
