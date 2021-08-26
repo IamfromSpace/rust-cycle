@@ -420,6 +420,18 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         .draw(target)
                 };
 
+                let graph_height = 4 * (LINEAR_BOUNDARY as f64 * y_scale) as i32;
+
+                // Max Value Line
+                draw_line(
+                    (0, (height / 2) as i32 - graph_height / 2),
+                    (
+                        (graph_width - 1) as i32,
+                        (height / 2) as i32 - graph_height / 2,
+                    ),
+                    1,
+                )?;
+
                 // TODO: Ideally, our reference line can be any thickness,
                 // without obscuring any metrics drawn--essentially it's just a
                 // line sandwiched between two distinct graphs.
@@ -427,6 +439,16 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 draw_line(
                     (0, (height / 2) as i32),
                     ((graph_width - 1) as i32, (height / 2) as i32),
+                    1,
+                )?;
+
+                // Min Value Line
+                draw_line(
+                    (0, (height / 2) as i32 + graph_height / 2),
+                    (
+                        (graph_width - 1) as i32,
+                        (height / 2) as i32 + graph_height / 2,
+                    ),
                     1,
                 )?;
 
@@ -448,7 +470,14 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         * (if p > goal { -1.0 } else { 1.0 });
                     draw_line(
                         (x as i32, (height / 2) as i32),
-                        (x as i32, (height / 2) as i32 + len as i32),
+                        (
+                            x as i32,
+                            (height / 2) as i32
+                                + std::cmp::min(
+                                    std::cmp::max(len as i32, -graph_height / 2),
+                                    graph_height / 2,
+                                ),
+                        ),
                         second_width,
                     )?;
                     match x.checked_sub(second_width) {
@@ -462,6 +491,16 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
                         (height - CHAR_HEIGHT) as i32 / 2,
+                    ),
+                )
+                .into_styled(style_tiny)
+                .draw(target)?;
+
+                Text::new(
+                    &(goal + LINEAR_BOUNDARY * LINEAR_BOUNDARY).to_string(),
+                    geometry::Point::new(
+                        (graph_width + SPACING) as i32,
+                        ((height - CHAR_HEIGHT) as i32 - graph_height) / 2,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -484,6 +523,17 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         (graph_width + SPACING) as i32,
                         (height - CHAR_HEIGHT) as i32 / 2
                             + (y_scale * LINEAR_BOUNDARY as f64) as i32,
+                    ),
+                )
+                .into_styled(style_tiny)
+                .draw(target)?;
+
+                // TODO: It's a bit silly if this goes below 0
+                Text::new(
+                    &(goal - LINEAR_BOUNDARY * LINEAR_BOUNDARY).to_string(),
+                    geometry::Point::new(
+                        (graph_width + SPACING) as i32,
+                        ((height - CHAR_HEIGHT) as i32 + graph_height) / 2,
                     ),
                 )
                 .into_styled(style_tiny)
