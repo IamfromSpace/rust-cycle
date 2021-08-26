@@ -395,12 +395,11 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
             Page::PowerTrack(goal) => {
                 let Size { height, width } = target.size();
 
-                // There are three points on the graph drawn "accurately:" the
-                // goal, and then two "even boundaries."  Within the boundaries,
-                // the error is exaggerated so it is more easily seen, outside
-                // of the boundaries, the error is understated, since the level
-                // of error is less meaningful.
-                const EVEN_BOUNDARY: i16 = 10;
+                // Inside the goal +/- this value, devation is drawn linearly.
+                // Outside of the boundary, we draw it logarithmically.  This
+                // helps dial in the power when close, but doesn't worry about
+                // drawing detail when you get too far away.
+                const LINEAR_BOUNDARY: i16 = 10;
 
                 const CHAR_COUNT: u32 = 3;
                 const CHAR_WIDTH: u32 = 6;
@@ -436,13 +435,17 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 let mut x = graph_width - second_width / 2;
                 for i in ((self.power_history.1 + 1)..(self.power_history.1 + 61)).rev() {
                     let p = self.power_history.0[i % 60];
-                    let delta = y_scale
-                        * EVEN_BOUNDARY as f64
-                        * (((p - goal) as f64).abs() / EVEN_BOUNDARY as f64).powf(1.0 / 3.0)
+                    let delta = (p - goal).abs();
+                    let len = y_scale
+                        * (if delta > LINEAR_BOUNDARY {
+                            LINEAR_BOUNDARY as f64 * (delta as f64).log(LINEAR_BOUNDARY as f64)
+                        } else {
+                            delta as f64
+                        })
                         * (if p > goal { -1.0 } else { 1.0 });
                     draw_line(
                         (x as i32, (height / 2) as i32),
-                        (x as i32, (height / 2) as i32 + delta as i32),
+                        (x as i32, (height / 2) as i32 + len as i32),
                         second_width,
                     )?;
                     match x.checked_sub(second_width) {
@@ -462,20 +465,22 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 .draw(target)?;
 
                 Text::new(
-                    &(goal + EVEN_BOUNDARY).to_string(),
+                    &(goal + LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2 - (y_scale * EVEN_BOUNDARY as f64) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2
+                            - (y_scale * LINEAR_BOUNDARY as f64) as i32,
                     ),
                 )
                 .into_styled(style_tiny)
                 .draw(target)?;
 
                 Text::new(
-                    &(goal - EVEN_BOUNDARY).to_string(),
+                    &(goal - LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2 + (y_scale * EVEN_BOUNDARY as f64) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2
+                            + (y_scale * LINEAR_BOUNDARY as f64) as i32,
                     ),
                 )
                 .into_styled(style_tiny)
