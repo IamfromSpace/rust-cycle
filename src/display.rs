@@ -420,6 +420,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         .draw(target)
                 };
 
+                // TODO: Ideally, our reference line can be any thickness,
+                // without obscuring any metrics drawn--essentially it's just a
+                // line sandwiched between two distinct graphs.
                 // Our reference line
                 draw_line(
                     (0, (height / 2) as i32),
