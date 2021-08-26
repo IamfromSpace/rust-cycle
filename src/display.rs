@@ -406,7 +406,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                 const CHAR_HEIGHT: u32 = 6;
                 const SPACING: u32 = 3;
 
-                let y_scale = 2.0;
+                let y_scale = 20.0;
                 let graph_width = width - (CHAR_COUNT * CHAR_WIDTH + 2 * SPACING);
 
                 let mut draw_line = |(a1, a2), (b1, b2), w| {
@@ -420,14 +420,12 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                         .draw(target)
                 };
 
-                let graph_height = 4 * (LINEAR_BOUNDARY as f64 * y_scale) as i32;
-
                 // Max Value Line
                 draw_line(
-                    (0, (height / 2) as i32 - graph_height / 2),
+                    (0, (height / 2) as i32 - (y_scale * 2.0) as i32),
                     (
                         (graph_width - 1) as i32,
-                        (height / 2) as i32 - graph_height / 2,
+                        (height / 2) as i32 - (y_scale * 2.0) as i32,
                     ),
                     1,
                 )?;
@@ -444,10 +442,10 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
                 // Min Value Line
                 draw_line(
-                    (0, (height / 2) as i32 + graph_height / 2),
+                    (0, (height / 2) as i32 + (y_scale * 2.0) as i32),
                     (
                         (graph_width - 1) as i32,
-                        (height / 2) as i32 + graph_height / 2,
+                        (height / 2) as i32 + (y_scale * 2.0) as i32,
                     ),
                     1,
                 )?;
@@ -463,9 +461,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     let delta = (p - goal).abs();
                     let len = y_scale
                         * (if delta > LINEAR_BOUNDARY {
-                            LINEAR_BOUNDARY as f64 * (delta as f64).log(LINEAR_BOUNDARY as f64)
+                            (delta as f64).log(LINEAR_BOUNDARY as f64)
                         } else {
-                            delta as f64
+                            delta as f64 / LINEAR_BOUNDARY as f64
                         })
                         * (if p > goal { -1.0 } else { 1.0 });
                     draw_line(
@@ -474,8 +472,8 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                             x as i32,
                             (height / 2) as i32
                                 + std::cmp::min(
-                                    std::cmp::max(len as i32, -graph_height / 2),
-                                    graph_height / 2,
+                                    std::cmp::max(len as i32, (2.0 * -y_scale) as i32),
+                                    (2.0 * y_scale) as i32,
                                 ),
                         ),
                         second_width,
@@ -500,7 +498,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     &(goal + LINEAR_BOUNDARY * LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
-                        ((height - CHAR_HEIGHT) as i32 - graph_height) / 2,
+                        ((height - CHAR_HEIGHT) as i32) / 2 - (2.0 * y_scale) as i32,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -510,8 +508,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     &(goal + LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2
-                            - (y_scale * LINEAR_BOUNDARY as f64) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2 - y_scale as i32,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -521,8 +518,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     &(goal - LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
-                        (height - CHAR_HEIGHT) as i32 / 2
-                            + (y_scale * LINEAR_BOUNDARY as f64) as i32,
+                        (height - CHAR_HEIGHT) as i32 / 2 + y_scale as i32,
                     ),
                 )
                 .into_styled(style_tiny)
@@ -533,7 +529,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     &(goal - LINEAR_BOUNDARY * LINEAR_BOUNDARY).to_string(),
                     geometry::Point::new(
                         (graph_width + SPACING) as i32,
-                        ((height - CHAR_HEIGHT) as i32 + graph_height) / 2,
+                        ((height - CHAR_HEIGHT) as i32) / 2 + (2.0 * y_scale) as i32,
                     ),
                 )
                 .into_styled(style_tiny)
