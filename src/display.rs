@@ -231,7 +231,10 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
             format!("{:.2}", self.distance / 1000.0)
         });
         let hr_str = heart_rate.map_or("---".to_string(), |x| format!("{:03}", x.0));
-        let elapsed_str = format!("{}", Local::now().format("%T"));
+        let current_str = format!("{}", Local::now().format("%T"));
+        let elapsed_str = elapsed_secs.map_or("--:--:--".to_string(), |s| {
+            format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
+        });
         let cadence_str = cadence.map_or("---".to_string(), |x| format!("{:03}", x.0));
 
         const MARGIN: i32 = 10;
@@ -332,7 +335,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .draw(target)?;
 
                 let y = y + LABEL_FONT_SIZE;
-                Text::new(&elapsed_str, geometry::Point::new(x, y))
+                Text::new(&current_str, geometry::Point::new(x, y))
                     .into_styled(style_large)
                     .draw(target)?;
 
@@ -342,14 +345,9 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
                     .draw(target)?;
 
                 let y = y + LABEL_FONT_SIZE;
-                Text::new(
-                    &elapsed_secs.map_or("--:--:--".to_string(), |s| {
-                        format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
-                    }),
-                    geometry::Point::new(x, y),
-                )
-                .into_styled(style_large)
-                .draw(target)?;
+                Text::new(&elapsed_str, geometry::Point::new(x, y))
+                    .into_styled(style_large)
+                    .draw(target)?;
 
                 let y = y + VALUE_FONT_SIZE + SPACING;
                 Text::new("POW (W)", geometry::Point::new(x, y))
@@ -554,7 +552,7 @@ impl Drawable<BinaryColor> for WorkoutDisplay {
 
                 let x = x + VALUE_FONT_WIDTH * COLUMN_ONE_MAX_CHARS + COLUMN_SPACING;
                 let y = MARGIN;
-                Text::new("CURRENT", geometry::Point::new(x, y))
+                Text::new("ELAPSED", geometry::Point::new(x, y))
                     .into_styled(style_tiny)
                     .draw(target)?;
 
