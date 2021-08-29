@@ -341,25 +341,29 @@ pub fn main() {
                         //TODO: The display should be able to accept a "wheel" and "crank" external
                         //energy field separately.  Right now for testing we just disable the
                         //KICKR's output to the display.
-                        //display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                        if !use_assioma {
+                            display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                        }
                     }
                     //TODO: The display should be able to accept a "wheel" and "crank" power field
                     //separately.  Right now for testing we just disable the KICKR's output to the
                     //display.
-                    //display.update_power(Some(power_reading.instantaneous_power));
+                    if !use_assioma {
+                        display.update_power(Some(power_reading.instantaneous_power));
+                    }
                     o_last_power_reading = Some(power_reading);
                     let elapsed = start.elapsed();
-                //TODO: Not exactly sure how to handle having _both_ power captures for when it
-                //comes to generating fit files.
-                /*
-                db_kickr
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-                */
+                    //TODO: Not exactly sure how to handle having _both_ power captures for when it
+                    //comes to generating fit files.
+                    if !use_assioma {
+                        db_kickr
+                            .insert(
+                                session_key,
+                                elapsed,
+                                telemetry_db::Notification::Ble((n.uuid, n.value)),
+                            )
+                            .unwrap();
+                    }
                 } else {
                     println!("Non-power notification from kickr: {:?}", n);
                 }
