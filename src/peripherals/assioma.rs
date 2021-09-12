@@ -21,14 +21,33 @@ impl<P: Peripheral, C: Central<P> + 'static> Assioma<C, P> {
                 peripheral.connect()?;
                 println!("Connected to Assioma");
 
-                peripheral.discover_characteristics()?;
-                println!("All characteristics discovered");
+                let mut power_measurement = None;
+                let mut wait = None;
 
-                let power_measurement = peripheral
-                    .characteristics()
-                    .into_iter()
-                    .find(|c| c.uuid == MEASURE_UUID)
-                    .unwrap();
+                while power_measurement.is_none() {
+                    wait.iter().for_each(|&t| {
+                        if t > 10 {
+                            panic!(
+                                "Could not find the power measurement characteristic after retries"
+                            );
+                        } else {
+                            thread::sleep(Duration::from_secs(t));
+                            println!("Couldn't find the power measurement characteristic on discovery.  Trying again...");
+                        }
+                    });
+
+                    peripheral.discover_characteristics()?;
+                    println!("All characteristics discovered");
+
+                    power_measurement = peripheral
+                        .characteristics()
+                        .into_iter()
+                        .find(|c| c.uuid == MEASURE_UUID);
+
+                    wait = Some(wait.unwrap_or(1) * 2);
+                }
+
+                let power_measurement = power_measurement.unwrap();
 
                 peripheral.subscribe(&power_measurement)?;
                 println!("Subscribed to power measure");
