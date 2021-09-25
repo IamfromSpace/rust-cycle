@@ -80,6 +80,12 @@ impl Buttons {
                 for i in 0..handlers.len() {
                     let last = (last_states >> i) & 1;
                     let curr = (states >> i) & 1;
+                    // TODO: It's worth reconsidering this behavior a little, in
+                    // that _everything_ that happens fires an event.  There's
+                    // no "smart" events that are exclusive like "click" that only
+                    // fires on a reasonably fast press and release that is not
+                    // a hold, or a hold that only fires once we're sure it's
+                    // not a repeat (that would invalide certain holds).
                     if let Some(handler) = handlers.get_mut(i) {
                         // If last > curr then it's a transition from 1 to 0
                         // since the buttons are active low, that's a press event
