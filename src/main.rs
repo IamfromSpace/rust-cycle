@@ -182,6 +182,7 @@ pub fn main() {
             )),
             "P/H/70W" => Location::Indoor(single_value(70)),
             "P/H/Ramp" => Location::Indoor(ramp_test(90)),
+            // TODO: These aren't supposed to use other peripherals
             "GPS Only" => Location::Outdoor,
             "GPS & HR" => Location::Outdoor,
             _ => panic!("Unexpected workout_name!"),
