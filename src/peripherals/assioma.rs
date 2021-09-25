@@ -24,6 +24,10 @@ impl<P: Peripheral, C: Central<P> + 'static> Assioma<C, P> {
                 let mut power_measurement = None;
                 let mut wait = None;
 
+                // TODO: These retries _never_ seem to work, so they actually
+                // make the problem worse, by drawing out the time it takes for
+                // the application to crash, preventing a human retry from the
+                // beginning.
                 while power_measurement.is_none() {
                     wait.iter().for_each(|&t| {
                         if t > 10 {
