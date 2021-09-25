@@ -500,9 +500,8 @@ pub fn main() {
 
         let power_target_mutex_power_track_page = power_target_mutex.clone();
         let display_mutex_power_track_page = display_mutex.clone();
-        buttons.on_hold(
+        buttons.on_press(
             buttons::Button::ButtonD,
-            Duration::from_secs(2),
             Box::new(move || {
                 let mut display = display_mutex_power_track_page.lock().unwrap();
                 let power = power_target_mutex_power_track_page.lock().unwrap();
@@ -526,8 +525,9 @@ pub fn main() {
 
         let power_target_mutex_increase = power_target_mutex.clone();
         let display_mutex_power_track_increase = display_mutex.clone();
-        buttons.on_press(
+        buttons.on_hold(
             buttons::Button::ButtonD,
+            Duration::from_secs(2),
             Box::new(move || {
                 let mut display = display_mutex_power_track_increase.lock().unwrap();
                 let mut power = power_target_mutex_increase.lock().unwrap();
