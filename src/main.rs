@@ -490,13 +490,46 @@ pub fn main() {
             }),
         );
 
+        // TODO: Like many other things, this should be encapsulated in some
+        // sort of User Interface concept that understands both inputs (buttons)
+        // and outputs (screens)
+        // TODO: Quite a lot of repetition here to ensure that changes to the
+        // target refect immediately.
+        let power_target_mutex = Arc::new(Mutex::new(145));
+
+        let power_target_mutex_power_track_page = power_target_mutex.clone();
         let display_mutex_power_track_page = display_mutex.clone();
         buttons.on_press(
             buttons::Button::ButtonD,
             Box::new(move || {
                 let mut display = display_mutex_power_track_page.lock().unwrap();
+                let power = power_target_mutex_power_track_page.lock().unwrap();
                 // TODO: This should be configurable
-                display.set_page(display::Page::PowerTrack(145));
+                display.set_page(display::Page::PowerTrack(*power));
+            }),
+        );
+
+        let power_target_mutex_decrease = power_target_mutex.clone();
+        let display_mutex_power_track_decrease = display_mutex.clone();
+        buttons.on_press(
+            buttons::Button::ButtonE,
+            Box::new(move || {
+                let mut display = display_mutex_power_track_decrease.lock().unwrap();
+                let mut power = power_target_mutex_decrease.lock().unwrap();
+                *power -= 5;
+                display.set_page(display::Page::PowerTrack(*power));
+            }),
+        );
+
+        let power_target_mutex_increase = power_target_mutex.clone();
+        let display_mutex_power_track_increase = display_mutex.clone();
+        buttons.on_press(
+            buttons::Button::ButtonD,
+            Box::new(move || {
+                let mut display = display_mutex_power_track_increase.lock().unwrap();
+                let mut power = power_target_mutex_increase.lock().unwrap();
+                *power += 5;
+                display.set_page(display::Page::PowerTrack(*power));
             }),
         );
 
