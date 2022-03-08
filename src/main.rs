@@ -753,18 +753,9 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
                         display,
                         buttons,
                         vec![
-                            SelectionTree::Node((
-                                format!("Try {} again", name).to_string(),
-                                vec![SelectionTree::Leaf(SetupNextStep::TryAgain)],
-                            )),
-                            SelectionTree::Node((
-                                format!("Continue without {}", name).to_string().to_string(),
-                                vec![SelectionTree::Leaf(SetupNextStep::ContinueWithout)],
-                            )),
-                            SelectionTree::Node((
-                                "Exit".to_string(),
-                                vec![SelectionTree::Leaf(SetupNextStep::Crash)],
-                            )),
+                            SelectionTree::Leaf(SetupNextStep::TryAgain),
+                            SelectionTree::Leaf(SetupNextStep::ContinueWithout),
+                            SelectionTree::Leaf(SetupNextStep::Crash),
                         ],
                     );
                     match choice {
