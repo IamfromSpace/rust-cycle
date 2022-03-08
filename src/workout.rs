@@ -45,9 +45,10 @@ impl Workout {
         let running = Arc::new(Mutex::new(true));
         let running_for_thread = running.clone();
         let Workout { ct, tail } = self;
+        let tail_iter = tail.map(|x| (Duration::from_secs(1000000), x)).into_iter();
         let join_handle = Some(thread::spawn(move || {
             let mut d = Duration::from_secs(0);
-            for (wait, power) in ct.into_iter() {
+            for (wait, power) in ct.into_iter().chain(tail_iter) {
                 // Overflow is not a consideration for the timeline of a single workout
                 d = d.checked_add(wait).unwrap();
                 let e = start.elapsed();
@@ -73,7 +74,6 @@ impl Workout {
                     }
                 }
             }
-            set_power(tail.unwrap_or(0));
         }));
 
         WorkoutHandle {
