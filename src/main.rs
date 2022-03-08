@@ -318,7 +318,7 @@ pub fn main() {
             None
         };
 
-        let kickr_and_handle = if let Location::Indoor(workout) = location {
+        let kickr = if let Location::Indoor(_) = location {
             // Connect to Kickr and print its raw notifications
             let kickr = or_crash_with_msg(
                 &display_mutex,
@@ -370,22 +370,8 @@ pub fn main() {
                 }
             }));
 
-            // run our workout
-            // Our workout will drop the closure after the workout ends (last
-            // power_set) and if we don't hold a reference to our kickr, it will
-            // be dropped along with the closure.  Dropping the kickr ends all
-            // of its subscriptions.
-            // TODO: Maybe all workouts should have an explicit end, rather than
-            // a tail?  That would make this more intuitive.  Then at the end of
-            // the workout, the program exits (and systemd restarts it).
-            let kickr = Arc::new(kickr);
-            let kickr_for_workout = kickr.clone();
-            let workout_handle = workout.run(Instant::now(), move |p| {
-                kickr_for_workout.set_power(p).unwrap();
-            });
-
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
-            Some((workout_handle, kickr))
+            Some(kickr)
         } else {
             None
         };
@@ -479,6 +465,27 @@ pub fn main() {
             None
         };
 
+        // run our workout
+        // Our workout will drop the closure after the workout ends (last
+        // power_set) and if we don't hold a reference to our kickr, it will be
+        // dropped along with the closure.  Dropping the kickr ends all of its
+        // subscriptions.
+        // TODO: Maybe all workouts should have an explicit end, rather than a
+        // tail?  That would make this more intuitive.  Then at the end of the
+        // workout, the program exits (and systemd restarts it).
+        let kickr = Arc::new(kickr);
+
+        let o_workout_handle = if let Location::Indoor(workout) = location {
+            let o_kickr_for_workout = kickr.clone();
+            Some(workout.run(Instant::now(), move |p| {
+                for kickr in o_kickr_for_workout.iter() {
+                    kickr.set_power(p).unwrap();
+                }
+            }))
+        } else {
+            None
+        };
+
         // TODO: The Combo of Buttons and Display should make up a sort of
         // "UserInterface" that hides the buttons (this would make using the
         // simulator much easier, for example).
@@ -563,7 +570,7 @@ pub fn main() {
             thread::sleep(Duration::from_millis(100));
         });
 
-        if let Some((mut wh, _)) = kickr_and_handle {
+        if let Some(mut wh) = o_workout_handle {
             wh.exit();
         }
         render_handle.join().unwrap();
