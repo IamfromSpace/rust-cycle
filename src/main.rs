@@ -193,9 +193,7 @@ pub fn main() {
         let start = Instant::now();
 
         display.set_start(Some(start));
-
-        // Create Our Display
-        let display_mutex = Arc::new(Mutex::new(display));
+        display.render_msg(&format!("Running {}", workout_name));
 
         // This won't fail unless the clock is before epoch, which sounds like a
         // bigger problem
@@ -209,11 +207,88 @@ pub fn main() {
             .unwrap()
             .as_secs();
 
-        lock_and_show(&display_mutex, &format!("Running {}", workout_name));
+        let mut o_gps = if let Location::Outdoor = location {
+            Some(or_crash_with_msg(
+                &mut display,
+                gps::Gps::new().ok(),
+                "Couldn't setup GPS!",
+            ))
+        } else {
+            None
+        };
 
-        let _gps = if let Location::Outdoor = location {
-            let mut gps =
-                or_crash_with_msg(&display_mutex, gps::Gps::new().ok(), "Couldn't setup GPS!");
+        // User prompts don't really help us much here, because this is a pretty
+        // hopeless case--pretty much everything uses bluetooth!
+        display.render_msg("Setting up Bluetooth");
+        let central = or_crash_with_msg(
+            &mut display,
+            setup_ble_and_discover_devices()
+                // Result to Option
+                // TODO: Loses original error
+                .ok()
+                //aka flatten: Option<Option<T>> -> Option<T>
+                .and_then(|x| x),
+            "Couldn't setup bluetooth!",
+        );
+        display.render_msg("Connecting to Devices.");
+
+        let mut o_speed = if let Location::Outdoor = location {
+            Some(or_crash_with_msg(
+                &mut display,
+                Speed::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to Speed Measure!",
+            ))
+        } else {
+            None
+        };
+
+        let mut o_hrm = if use_hr {
+            Some(or_crash_with_msg(
+                &mut display,
+                Hrm::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to heart rate monitor!",
+            ))
+        } else {
+            None
+        };
+
+        let mut o_kickr = if let Location::Indoor(_) = location {
+            Some(or_crash_with_msg(
+                &mut display,
+                Kickr::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to kickr!",
+            ))
+        } else {
+            None
+        };
+
+        let mut o_assioma = if use_assioma {
+            Some(or_crash_with_msg(
+                &mut display,
+                Assioma::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to Assioma Pedals!",
+            ))
+        } else {
+            None
+        };
+
+        let mut o_cadence = if use_cadence {
+            Some(or_crash_with_msg(
+                &mut display,
+                Cadence::new(central.clone()).ok().and_then(|x| x),
+                "Could not connect to Cadence Measure!",
+            ))
+        } else {
+            None
+        };
+
+        // We now need a mutex, so we can share the display out to multiple
+        // peripherals
+        let display_mutex = Arc::new(Mutex::new(display));
+
+        // Need to make sure we don't consume the optional, or it will be
+        // dropped prematurely
+        for gps in &mut o_gps {
             let db_gps = db.clone();
             let display_mutex_for_gps = display_mutex.clone();
             gps.on_update(Box::new(move |s| {
@@ -232,33 +307,11 @@ pub fn main() {
                     .unwrap();
             }));
             lock_and_show(&display_mutex, &format!("GPS Ready"));
-            Some(gps)
-        } else {
-            None
-        };
+        }
 
-        lock_and_show(&display_mutex, &"Setting up Bluetooth");
-        let central = or_crash_with_msg(
-            &display_mutex,
-            setup_ble_and_discover_devices()
-                // Result to Option
-                // TODO: Loses original error
-                .ok()
-                //aka flatten: Option<Option<T>> -> Option<T>
-                .and_then(|x| x),
-            "Couldn't setup bluetooth!",
-        );
-        lock_and_show(&display_mutex, &"Connecting to Devices.");
-
-        // We need to bind to keep our speed peripheral until the end of the scope
-        let _speed = if let Location::Outdoor = location {
-            // Connect to Speed meter and print its raw notifications
-            let speed_measure = or_crash_with_msg(
-                &display_mutex,
-                Speed::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to Speed Measure!",
-            );
-
+        // Need to make sure we don't consume the optional, or it will be
+        // dropped prematurely
+        for speed_measure in &mut o_speed {
             let mut o_last_speed_measure: Option<CscMeasurement> = None;
             let mut wheel_count = 0;
             let db_speed_measure = db.clone();
@@ -284,20 +337,11 @@ pub fn main() {
                     .unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Speed Monitor");
-            Some(speed_measure)
-        } else {
-            None
-        };
+        }
 
-        // We need to bind to keep our hrm until the end of the scope
-        let _hrm = if use_hr {
-            // Connect to HRM and print its parsed notifications
-            let hrm = or_crash_with_msg(
-                &display_mutex,
-                Hrm::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to heart rate monitor!",
-            );
-
+        // Need to make sure we don't consume the optional, or it will be
+        // dropped prematurely
+        for hrm in &mut o_hrm {
             let db_hrm = db.clone();
             let display_mutex_hrm = display_mutex.clone();
             hrm.on_notification(Box::new(move |n| {
@@ -313,19 +357,11 @@ pub fn main() {
                     .unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
-            Some(hrm)
-        } else {
-            None
-        };
+        }
 
-        let kickr = if let Location::Indoor(_) = location {
-            // Connect to Kickr and print its raw notifications
-            let kickr = or_crash_with_msg(
-                &display_mutex,
-                Kickr::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to kickr!",
-            );
-
+        // Need to make sure we don't consume the optional, or it will be
+        // dropped prematurely
+        for kickr in &mut o_kickr {
             let db_kickr = db.clone();
             let display_mutex_kickr = display_mutex.clone();
             let mut o_last_power_reading: Option<CyclingPowerMeasurement> = None;
@@ -369,22 +405,12 @@ pub fn main() {
                     println!("Non-power notification from kickr: {:?}", n);
                 }
             }));
-
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
-            Some(kickr)
-        } else {
-            None
-        };
+        }
 
-        // We need to bind to keep our assioma peripheral until the end of the scope
-        let _assioma = if use_assioma {
-            // Connect to Cadence meter and print its raw notifications
-            let assioma = or_crash_with_msg(
-                &display_mutex,
-                Assioma::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to Assioma Pedals!",
-            );
-
+        // Need to make sure we don't consume the optional, or it will be
+        // dropped prematurely
+        for assioma in &mut o_assioma {
             let mut o_last_power_measure: Option<CyclingPowerMeasurement> = None;
             let mut crank_count = 0;
             let mut acc_torque = 0.0;
@@ -421,20 +447,11 @@ pub fn main() {
                     .unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Assioma Pedals!");
-            Some(assioma)
-        } else {
-            None
-        };
+        }
 
-        // We need to bind to keep our cadence peripheral until the end of the scope
-        let _cadence = if use_cadence {
-            // Connect to Cadence meter and print its raw notifications
-            let cadence_measure = or_crash_with_msg(
-                &display_mutex,
-                Cadence::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to Cadence Measure!",
-            );
-
+        // Need to make sure we don't consume the optional, or it will be
+        // dropped prematurely
+        for cadence_measure in &mut o_cadence {
             let mut o_last_cadence_measure: Option<CscMeasurement> = None;
             let mut crank_count = 0;
             let db_cadence_measure = db.clone();
@@ -460,10 +477,7 @@ pub fn main() {
                     .unwrap();
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
-            Some(cadence_measure)
-        } else {
-            None
-        };
+        }
 
         // run our workout
         // Our workout will drop the closure after the workout ends (last
@@ -473,10 +487,10 @@ pub fn main() {
         // TODO: Maybe all workouts should have an explicit end, rather than a
         // tail?  That would make this more intuitive.  Then at the end of the
         // workout, the program exits (and systemd restarts it).
-        let kickr = Arc::new(kickr);
+        let o_kickr = Arc::new(o_kickr);
 
         let o_workout_handle = if let Location::Indoor(workout) = location {
-            let o_kickr_for_workout = kickr.clone();
+            let o_kickr_for_workout = o_kickr.clone();
             Some(workout.run(Instant::now(), move |p| {
                 for kickr in o_kickr_for_workout.iter() {
                     kickr.set_power(p).unwrap();
@@ -703,7 +717,20 @@ fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
     display.render_msg(msg);
 }
 
-fn or_crash_with_msg<T>(
+fn crash_with_msg<T>(display: &mut display::Display, msg: &'static str) -> T {
+    display.render_msg(msg);
+    thread::sleep(Duration::from_secs(1));
+    panic!(msg)
+}
+
+fn or_crash_with_msg<T>(display: &mut display::Display, x: Option<T>, msg: &'static str) -> T {
+    match x {
+        Some(y) => y,
+        None => crash_with_msg(display, msg),
+    }
+}
+
+fn or_crash_and_lock_with_msg<T>(
     display_mutex: &Arc<Mutex<display::Display>>,
     x: Option<T>,
     msg: &'static str,
@@ -711,9 +738,8 @@ fn or_crash_with_msg<T>(
     match x {
         Some(y) => y,
         None => {
-            lock_and_show(&display_mutex, msg);
-            thread::sleep(Duration::from_secs(1));
-            panic!(msg)
+            let mut display = display_mutex.lock().unwrap();
+            crash_with_msg(&mut display, msg)
         }
     }
 }
