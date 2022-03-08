@@ -28,6 +28,7 @@ use ble::{
 };
 use btleplug::api::Central;
 use btleplug::bluez::manager::Manager;
+use btleplug::Error::DeviceNotFound;
 use peripherals::{
     assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
 };
@@ -46,6 +47,23 @@ const WHEEL_CIRCUMFERENCE: f32 = 2.105;
 enum OrExit<T> {
     NotExit(T),
     Exit,
+}
+
+#[derive(Clone, Debug)]
+enum SetupNextStep {
+    TryAgain,
+    ContinueWithout,
+    Crash,
+}
+
+impl std::fmt::Display for SetupNextStep {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SetupNextStep::TryAgain => write!(f, "Try Again"),
+            SetupNextStep::ContinueWithout => write!(f, "Continue Without"),
+            SetupNextStep::Crash => write!(f, "Crash"),
+        }
+    }
 }
 
 enum Location {
@@ -207,15 +225,15 @@ pub fn main() {
             .unwrap()
             .as_secs();
 
-        let mut o_gps = if let Location::Outdoor = location {
-            Some(or_crash_with_msg(
-                &mut display,
-                gps::Gps::new().ok(),
-                "Couldn't setup GPS!",
-            ))
-        } else {
-            None
+        let use_gps_and_speed = match location {
+            Location::Outdoor => true,
+            _ => false,
         };
+
+        let mut o_gps =
+            user_connect_or_skip(&mut display, &mut buttons, use_gps_and_speed, "GPS", || {
+                gps::Gps::new()
+            });
 
         // User prompts don't really help us much here, because this is a pretty
         // hopeless case--pretty much everything uses bluetooth!
@@ -232,55 +250,45 @@ pub fn main() {
         );
         display.render_msg("Connecting to Devices.");
 
-        let mut o_speed = if let Location::Outdoor = location {
-            Some(or_crash_with_msg(
-                &mut display,
-                Speed::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to Speed Measure!",
-            ))
-        } else {
-            None
-        };
+        let mut o_speed = user_connect_or_skip(
+            &mut display,
+            &mut buttons,
+            use_gps_and_speed,
+            "Speed Measure",
+            || squish_error(Speed::new(central.clone())),
+        );
 
-        let mut o_hrm = if use_hr {
-            Some(or_crash_with_msg(
-                &mut display,
-                Hrm::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to heart rate monitor!",
-            ))
-        } else {
-            None
-        };
+        let mut o_hrm = user_connect_or_skip(
+            &mut display,
+            &mut buttons,
+            use_hr,
+            "Heart Rate Monitor",
+            || squish_error(Hrm::new(central.clone())),
+        );
 
-        let mut o_kickr = if let Location::Indoor(_) = location {
-            Some(or_crash_with_msg(
-                &mut display,
-                Kickr::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to kickr!",
-            ))
-        } else {
-            None
-        };
+        let mut o_kickr = user_connect_or_skip(
+            &mut display,
+            &mut buttons,
+            !use_gps_and_speed,
+            "Kickr",
+            || squish_error(Kickr::new(central.clone())),
+        );
 
-        let mut o_assioma = if use_assioma {
-            Some(or_crash_with_msg(
-                &mut display,
-                Assioma::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to Assioma Pedals!",
-            ))
-        } else {
-            None
-        };
+        let mut o_assioma = user_connect_or_skip(
+            &mut display,
+            &mut buttons,
+            use_assioma,
+            "Assioma Pedals",
+            || squish_error(Assioma::new(central.clone())),
+        );
 
-        let mut o_cadence = if use_cadence {
-            Some(or_crash_with_msg(
-                &mut display,
-                Cadence::new(central.clone()).ok().and_then(|x| x),
-                "Could not connect to Cadence Measure!",
-            ))
-        } else {
-            None
-        };
+        let mut o_cadence = user_connect_or_skip(
+            &mut display,
+            &mut buttons,
+            use_cadence,
+            "Cadence Measure",
+            || squish_error(Cadence::new(central.clone())),
+        );
 
         // We now need a mutex, so we can share the display out to multiple
         // peripherals
@@ -709,6 +717,65 @@ fn setup_ble_and_discover_devices(
             Ok(Some(central))
         }
         None => Ok(None),
+    }
+}
+
+fn squish_error<T>(x: btleplug::Result<Option<T>>) -> btleplug::Result<T> {
+    match x {
+        Ok(None) => Err(DeviceNotFound),
+        Ok(Some(y)) => Ok(y),
+        Err(e) => Err(e),
+    }
+}
+
+fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
+    display: &mut display::Display,
+    buttons: &mut buttons::Buttons,
+    in_use: bool,
+    name: &str,
+    f: F,
+) -> Option<T> {
+    let mut in_use = in_use;
+    loop {
+        if in_use {
+            match f() {
+                Ok(peripheral) => {
+                    break Some(peripheral);
+                }
+                Err(e) => {
+                    // Get this into the logs at least
+                    // TODO: Can we show this to the user?  Does it help?
+                    println!("{:?}", e);
+                    let choice = selection_tree(
+                        display,
+                        buttons,
+                        vec![
+                            SelectionTree::Node((
+                                format!("Try {} again", name).to_string(),
+                                vec![SelectionTree::Leaf(SetupNextStep::TryAgain)],
+                            )),
+                            SelectionTree::Node((
+                                format!("Continue without {}", name).to_string().to_string(),
+                                vec![SelectionTree::Leaf(SetupNextStep::ContinueWithout)],
+                            )),
+                            SelectionTree::Node((
+                                "Exit".to_string(),
+                                vec![SelectionTree::Leaf(SetupNextStep::Crash)],
+                            )),
+                        ],
+                    );
+                    match choice {
+                        SetupNextStep::TryAgain => (),
+                        SetupNextStep::ContinueWithout => {
+                            in_use = false;
+                        }
+                        SetupNextStep::Crash => crash_with_msg(display, "Goodbye"),
+                    }
+                }
+            }
+        } else {
+            break None;
+        }
     }
 }
 
