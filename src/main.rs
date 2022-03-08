@@ -747,8 +747,9 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
                 }
                 Err(e) => {
                     // Get this into the logs at least
-                    // TODO: Can we show this to the user?  Does it help?
                     println!("{:?}", e);
+                    display.render_msg(&format!("Error Connecting to {}: {:?}", name, e));
+                    thread::sleep(Duration::from_secs(1));
                     let choice = selection_tree(
                         display,
                         buttons,
@@ -759,7 +760,10 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
                         ],
                     );
                     match choice {
-                        SetupNextStep::TryAgain => (),
+                        SetupNextStep::TryAgain => {
+                            display.render_msg(&format!("Retrying {}", name));
+                            thread::sleep(Duration::from_secs(1));
+                        }
                         SetupNextStep::ContinueWithout => {
                             in_use = false;
                         }
