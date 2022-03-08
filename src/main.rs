@@ -600,6 +600,7 @@ pub fn main() {
     }
 }
 
+// TODO: Leaves should also have labels
 #[derive(Clone)]
 enum SelectionTree<T> {
     Leaf(T),
@@ -615,6 +616,8 @@ impl<T: std::fmt::Display> std::fmt::Display for SelectionTree<T> {
     }
 }
 
+// TODO: Sets of choices should also likely have labels, like "choose your
+// favorite breakfast food:"
 fn selection_tree<O: std::fmt::Display + Clone>(
     mut display: &mut display::Display,
     mut buttons: &mut buttons::Buttons,
