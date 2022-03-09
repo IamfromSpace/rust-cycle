@@ -497,16 +497,36 @@ pub fn main() {
         // workout, the program exits (and systemd restarts it).
         let o_kickr = Arc::new(o_kickr);
 
-        let o_workout_handle = if let Location::Indoor(workout) = location {
-            let o_kickr_for_workout = o_kickr.clone();
-            Some(workout.run(Instant::now(), move |p| {
-                for kickr in o_kickr_for_workout.iter() {
-                    kickr.set_power(p).unwrap();
-                }
-            }))
-        } else {
-            None
+        // TODO: It's dumb that were managing these two separate mutexes (power
+        // target and display).  The target should just be private state of the
+        // display, so if we modify the workout's offset or, that later sets the
+        // power, which modifies the internal state of the display, which is
+        // reflected on the next display render.
+        let power_target_mutex = Arc::new(Mutex::new(0));
+
+        let workout = match location {
+            Location::Indoor(workout) => workout,
+            _ => single_value(145),
         };
+
+        let power_target_mutex_workout = power_target_mutex.clone();
+        let o_kickr_for_workout = o_kickr.clone();
+        let display_mutex_workout = display_mutex.clone();
+        let mut workout_handle = workout.run(Instant::now(), move |p| {
+            // If there's a connected Kickr, set its ERG mode power
+            for kickr in o_kickr_for_workout.iter() {
+                kickr.set_power(p).unwrap();
+            }
+
+            // Update our power target used by the display, and update the
+            // display immediately
+            {
+                let mut power_target = power_target_mutex_workout.lock().unwrap();
+                *power_target = p;
+                let mut display = display_mutex_workout.lock().unwrap();
+                display.set_page(display::Page::PowerTrack(p as i16));
+            }
+        });
 
         // TODO: The Combo of Buttons and Display should make up a sort of
         // "UserInterface" that hides the buttons (this would make using the
@@ -525,7 +545,6 @@ pub fn main() {
         // and outputs (screens)
         // TODO: Quite a lot of repetition here to ensure that changes to the
         // target refect immediately.
-        let power_target_mutex = Arc::new(Mutex::new(145));
 
         let power_target_mutex_power_track_page = power_target_mutex.clone();
         let display_mutex_power_track_page = display_mutex.clone();
@@ -535,34 +554,22 @@ pub fn main() {
                 let mut display = display_mutex_power_track_page.lock().unwrap();
                 let power = power_target_mutex_power_track_page.lock().unwrap();
                 // TODO: This should be configurable
-                display.set_page(display::Page::PowerTrack(*power));
+                display.set_page(display::Page::PowerTrack(*power as i16));
             }),
         );
 
-        let power_target_mutex_decrease = power_target_mutex.clone();
-        let display_mutex_power_track_decrease = display_mutex.clone();
+        let workout_state = workout_handle.state.clone();
         buttons.on_hold(
             buttons::Button::ButtonE,
             Duration::from_secs(2),
-            Box::new(move || {
-                let mut display = display_mutex_power_track_decrease.lock().unwrap();
-                let mut power = power_target_mutex_decrease.lock().unwrap();
-                *power -= 5;
-                display.set_page(display::Page::PowerTrack(*power));
-            }),
+            Box::new(move || workout::add_offset(&workout_state, -5)),
         );
 
-        let power_target_mutex_increase = power_target_mutex.clone();
-        let display_mutex_power_track_increase = display_mutex.clone();
+        let workout_state = workout_handle.state.clone();
         buttons.on_hold(
             buttons::Button::ButtonD,
             Duration::from_secs(2),
-            Box::new(move || {
-                let mut display = display_mutex_power_track_increase.lock().unwrap();
-                let mut power = power_target_mutex_increase.lock().unwrap();
-                *power += 5;
-                display.set_page(display::Page::PowerTrack(*power));
-            }),
+            Box::new(move || workout::add_offset(&workout_state, 5)),
         );
 
         let m_will_exit = Arc::new(Mutex::new(false));
@@ -592,9 +599,7 @@ pub fn main() {
             thread::sleep(Duration::from_millis(100));
         });
 
-        if let Some(mut wh) = o_workout_handle {
-            wh.exit();
-        }
+        workout_handle.exit();
         render_handle.join().unwrap();
         lock_and_show(&display_mutex, &"Goodbye");
     }
