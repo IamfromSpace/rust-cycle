@@ -599,8 +599,8 @@ pub fn main() {
             thread::sleep(Duration::from_millis(100));
         });
 
-        workout_handle.exit();
         render_handle.join().unwrap();
+        workout_handle.exit();
         lock_and_show(&display_mutex, &"Goodbye");
     }
 }
