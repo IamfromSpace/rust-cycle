@@ -56,11 +56,14 @@ enum SetupNextStep {
     Crash,
 }
 
-enum Location {
-    Indoor(workout::Workout),
-    Outdoor,
-}
-
+#[derive(Clone)]
+struct SelectedDevices {
+    assioma: bool,
+    cadence: bool,
+    gps: bool,
+    hr: bool,
+    kickr: bool,
+    speed: bool,
 }
 
 pub fn main() {
@@ -90,100 +93,42 @@ pub fn main() {
         // TODO: Select Enums
         use OrExit::{Exit, NotExit};
         use SelectionTreeValue::{Leaf, Node};
-        let workout_name = selection_tree(
+        let devices = selection_tree(
             &mut display,
             &mut buttons,
             vec![
                 SelectionTree {
                     label: "Zenia".to_string(),
-                    value: Node(vec![SelectionTree {
-                        label: "100W".to_string(),
-                        value: Leaf(NotExit("100W")),
-                    }]),
+                    value: Leaf(NotExit(SelectedDevices {
+                        assioma: false,
+                        cadence: true,
+                        gps: false,
+                        hr: false,
+                        kickr: true,
+                        speed: false,
+                    })),
                 },
                 SelectionTree {
-                    label: "Nathan".to_string(),
-                    value: Node(vec![
-                        SelectionTree {
-                            label: "Outdoor".to_string(),
-                            value: Leaf(NotExit("Outdoor")),
-                        },
-                        SelectionTree {
-                            label: "Fixed".to_string(),
-                            value: Node(vec![
-                                SelectionTree {
-                                    label: "145W".to_string(),
-                                    value: Leaf(NotExit("145W")),
-                                },
-                                SelectionTree {
-                                    label: "150W".to_string(),
-                                    value: Leaf(NotExit("150W")),
-                                },
-                                SelectionTree {
-                                    label: "155W".to_string(),
-                                    value: Leaf(NotExit("155W")),
-                                },
-                                SelectionTree {
-                                    label: "160W".to_string(),
-                                    value: Leaf(NotExit("160W")),
-                                },
-                                SelectionTree {
-                                    label: "More".to_string(),
-                                    value: Node(vec![
-                                        SelectionTree {
-                                            label: "165W".to_string(),
-                                            value: Leaf(NotExit("165W")),
-                                        },
-                                        SelectionTree {
-                                            label: "170W".to_string(),
-                                            value: Leaf(NotExit("170W")),
-                                        },
-                                        SelectionTree {
-                                            label: "175W".to_string(),
-                                            value: Leaf(NotExit("175W")),
-                                        },
-                                        SelectionTree {
-                                            label: "180W".to_string(),
-                                            value: Leaf(NotExit("180W")),
-                                        },
-                                        SelectionTree {
-                                            label: "185W".to_string(),
-                                            value: Leaf(NotExit("185W")),
-                                        },
-                                    ]),
-                                },
-                            ]),
-                        },
-                        SelectionTree {
-                            label: "Ramp".to_string(),
-                            value: Leaf(NotExit("Ramp")),
-                        },
-                        SelectionTree {
-                            label: "1st Big Interval".to_string(),
-                            value: Leaf(NotExit("1st Big Interval")),
-                        },
-                    ]),
+                    label: "Nathan Outdoor".to_string(),
+                    value: Leaf(NotExit(SelectedDevices {
+                        assioma: true,
+                        cadence: false,
+                        gps: true,
+                        hr: true,
+                        kickr: false,
+                        speed: true,
+                    })),
                 },
                 SelectionTree {
-                    label: "Tests".to_string(),
-                    value: Node(vec![
-                        SelectionTree {
-                            label: "GPS Only".to_string(),
-                            value: Leaf(NotExit("GPS Only")),
-                        },
-                        SelectionTree {
-                            label: "GPS & HR".to_string(),
-                            value: Leaf(NotExit("GPS & HR")),
-                        },
-                        SelectionTree {
-                            label: "P/H/70W".to_string(),
-                            value: Leaf(NotExit("P/H/70W")),
-                        },
-                        SelectionTree {
-                            label: "P/H/Ramp".to_string(),
-                            value: Leaf(NotExit("P/H/Ramp")),
-                        },
-                    ]),
+                    label: "Nathan Indoor".to_string(),
+                    value: Leaf(NotExit(SelectedDevices {
+                        assioma: true,
+                        cadence: false,
+                        gps: false,
+                        hr: true,
+                        kickr: true,
+                        speed: false,
+                    })),
                 },
                 SelectionTree {
                     label: "Exit".to_string(),
@@ -192,7 +137,7 @@ pub fn main() {
             ],
         );
 
-        let workout_name = match workout_name {
+        let devices = match devices {
             Exit => {
                 display.render_msg("Goodbye");
                 // TODO: Set this up in a way that doesn't require manual drops
@@ -210,48 +155,79 @@ pub fn main() {
             NotExit(x) => x,
         };
 
-        // Nathan specific peripherals
-        let use_hr = workout_name != "100W";
-        let use_assioma = workout_name != "100W";
-
-        // Zenia specific peripherals
-        let use_cadence = workout_name == "100W";
-
-        let location = match workout_name {
-            "100W" => Location::Indoor(single_value(100)),
-            "Outdoor" => Location::Outdoor,
-            "145W" => Location::Indoor(single_value(145)),
-            "150W" => Location::Indoor(single_value(150)),
-            "155W" => Location::Indoor(single_value(155)),
-            "160W" => Location::Indoor(single_value(160)),
-            "165W" => Location::Indoor(single_value(165)),
-            "170W" => Location::Indoor(single_value(170)),
-            "175W" => Location::Indoor(single_value(175)),
-            "180W" => Location::Indoor(single_value(180)),
-            "185W" => Location::Indoor(single_value(185)),
-            "Ramp" => Location::Indoor(ramp_test(120)),
-            "1st Big Interval" => Location::Indoor(create_big_start_interval(
-                (Duration::from_secs(300), 140),
-                14,
-                Duration::from_secs(150),
-                (Duration::from_secs(60), 320),
-                (Duration::from_secs(90), 120),
-                Some(160),
-            )),
-            "P/H/70W" => Location::Indoor(single_value(70)),
-            "P/H/Ramp" => Location::Indoor(ramp_test(90)),
-            // TODO: These aren't supposed to use other peripherals
-            "GPS Only" => Location::Outdoor,
-            "GPS & HR" => Location::Outdoor,
-            _ => panic!("Unexpected workout_name!"),
-        };
+        let workout = selection_tree(
+            &mut display,
+            &mut buttons,
+            vec![
+                SelectionTree {
+                    label: "Fixed".to_string(),
+                    value: Node(vec![
+                        SelectionTree {
+                            label: "100W".to_string(),
+                            value: Leaf(single_value(100)),
+                        },
+                        SelectionTree {
+                            label: "135W".to_string(),
+                            value: Leaf(single_value(135)),
+                        },
+                        SelectionTree {
+                            label: "140W".to_string(),
+                            value: Leaf(single_value(140)),
+                        },
+                        SelectionTree {
+                            label: "145W".to_string(),
+                            value: Leaf(single_value(145)),
+                        },
+                        SelectionTree {
+                            label: "More".to_string(),
+                            value: Node(vec![
+                                SelectionTree {
+                                    label: "150W".to_string(),
+                                    value: Leaf(single_value(150)),
+                                },
+                                SelectionTree {
+                                    label: "155W".to_string(),
+                                    value: Leaf(single_value(155)),
+                                },
+                                SelectionTree {
+                                    label: "160W".to_string(),
+                                    value: Leaf(single_value(160)),
+                                },
+                                SelectionTree {
+                                    label: "165W".to_string(),
+                                    value: Leaf(single_value(165)),
+                                },
+                                SelectionTree {
+                                    label: "170W".to_string(),
+                                    value: Leaf(single_value(170)),
+                                },
+                            ]),
+                        },
+                    ]),
+                },
+                SelectionTree {
+                    label: "Ramp".to_string(),
+                    value: Leaf(ramp_test(120)),
+                },
+                SelectionTree {
+                    label: "1st Big Interval".to_string(),
+                    value: Leaf(create_big_start_interval(
+                        (Duration::from_secs(300), 140),
+                        14,
+                        Duration::from_secs(150),
+                        (Duration::from_secs(60), 320),
+                        (Duration::from_secs(90), 120),
+                        Some(160),
+                    )),
+                },
+            ],
+        );
 
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
         let start = Instant::now();
 
         display.set_start(Some(start));
-        display.render_msg(&format!("Running {}", workout_name));
 
         // This won't fail unless the clock is before epoch, which sounds like a
         // bigger problem
@@ -265,13 +241,8 @@ pub fn main() {
             .unwrap()
             .as_secs();
 
-        let use_gps_and_speed = match location {
-            Location::Outdoor => true,
-            _ => false,
-        };
-
         let mut o_gps =
-            user_connect_or_skip(&mut display, &mut buttons, use_gps_and_speed, "GPS", || {
+            user_connect_or_skip(&mut display, &mut buttons, devices.gps, "GPS", || {
                 gps::Gps::new()
             });
 
@@ -293,7 +264,7 @@ pub fn main() {
         let mut o_speed = user_connect_or_skip(
             &mut display,
             &mut buttons,
-            use_gps_and_speed,
+            devices.speed,
             "Speed Measure",
             || squish_error(Speed::new(central.clone())),
         );
@@ -301,23 +272,20 @@ pub fn main() {
         let mut o_hrm = user_connect_or_skip(
             &mut display,
             &mut buttons,
-            use_hr,
+            devices.hr,
             "Heart Rate Monitor",
             || squish_error(Hrm::new(central.clone())),
         );
 
-        let mut o_kickr = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            !use_gps_and_speed,
-            "Kickr",
-            || squish_error(Kickr::new(central.clone())),
-        );
+        let mut o_kickr =
+            user_connect_or_skip(&mut display, &mut buttons, devices.kickr, "Kickr", || {
+                squish_error(Kickr::new(central.clone()))
+            });
 
         let mut o_assioma = user_connect_or_skip(
             &mut display,
             &mut buttons,
-            use_assioma,
+            devices.assioma,
             "Assioma Pedals",
             || squish_error(Assioma::new(central.clone())),
         );
@@ -325,7 +293,7 @@ pub fn main() {
         let mut o_cadence = user_connect_or_skip(
             &mut display,
             &mut buttons,
-            use_cadence,
+            devices.cadence,
             "Cadence Measure",
             || squish_error(Cadence::new(central.clone())),
         );
@@ -406,6 +374,8 @@ pub fn main() {
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
         }
+
+        let use_assioma = devices.assioma;
 
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
@@ -543,11 +513,6 @@ pub fn main() {
         // power, which modifies the internal state of the display, which is
         // reflected on the next display render.
         let power_target_mutex = Arc::new(Mutex::new(0));
-
-        let workout = match location {
-            Location::Indoor(workout) => workout,
-            _ => single_value(145),
-        };
 
         let power_target_mutex_workout = power_target_mutex.clone();
         let o_kickr_for_workout = o_kickr.clone();
