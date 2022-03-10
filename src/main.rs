@@ -56,28 +56,11 @@ enum SetupNextStep {
     Crash,
 }
 
-impl std::fmt::Display for SetupNextStep {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SetupNextStep::TryAgain => write!(f, "Try Again"),
-            SetupNextStep::ContinueWithout => write!(f, "Continue Without"),
-            SetupNextStep::Crash => write!(f, "Crash"),
-        }
-    }
-}
-
 enum Location {
     Indoor(workout::Workout),
     Outdoor,
 }
 
-impl<T: std::fmt::Display> std::fmt::Display for OrExit<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            OrExit::NotExit(t) => write!(f, "{}", t),
-            OrExit::Exit => write!(f, "Exit"),
-        }
-    }
 }
 
 pub fn main() {
@@ -106,49 +89,106 @@ pub fn main() {
 
         // TODO: Select Enums
         use OrExit::{Exit, NotExit};
-        use SelectionTree::{Leaf, Node};
+        use SelectionTreeValue::{Leaf, Node};
         let workout_name = selection_tree(
             &mut display,
             &mut buttons,
             vec![
-                Node(("Zenia".to_string(), vec![Leaf(NotExit("100W"))])),
-                Node((
-                    "Nathan".to_string(),
-                    vec![
-                        Leaf(NotExit("Outdoor")),
-                        Node((
-                            "Fixed".to_string(),
-                            vec![
-                                Leaf(NotExit("145W")),
-                                Leaf(NotExit("150W")),
-                                Leaf(NotExit("155W")),
-                                Leaf(NotExit("160W")),
-                                Node((
-                                    "More".to_string(),
-                                    vec![
-                                        Leaf(NotExit("165W")),
-                                        Leaf(NotExit("170W")),
-                                        Leaf(NotExit("175W")),
-                                        Leaf(NotExit("180W")),
-                                        Leaf(NotExit("185W")),
-                                    ],
-                                )),
-                            ],
-                        )),
-                        Leaf(NotExit("Ramp")),
-                        Leaf(NotExit("1st Big Interval")),
-                    ],
-                )),
-                Node((
-                    "Tests".to_string(),
-                    vec![
-                        Leaf(NotExit("GPS Only")),
-                        Leaf(NotExit("GPS & HR")),
-                        Leaf(NotExit("P/H/70W")),
-                        Leaf(NotExit("P/H/Ramp")),
-                    ],
-                )),
-                Leaf(Exit),
+                SelectionTree {
+                    label: "Zenia".to_string(),
+                    value: Node(vec![SelectionTree {
+                        label: "100W".to_string(),
+                        value: Leaf(NotExit("100W")),
+                    }]),
+                },
+                SelectionTree {
+                    label: "Nathan".to_string(),
+                    value: Node(vec![
+                        SelectionTree {
+                            label: "Outdoor".to_string(),
+                            value: Leaf(NotExit("Outdoor")),
+                        },
+                        SelectionTree {
+                            label: "Fixed".to_string(),
+                            value: Node(vec![
+                                SelectionTree {
+                                    label: "145W".to_string(),
+                                    value: Leaf(NotExit("145W")),
+                                },
+                                SelectionTree {
+                                    label: "150W".to_string(),
+                                    value: Leaf(NotExit("150W")),
+                                },
+                                SelectionTree {
+                                    label: "155W".to_string(),
+                                    value: Leaf(NotExit("155W")),
+                                },
+                                SelectionTree {
+                                    label: "160W".to_string(),
+                                    value: Leaf(NotExit("160W")),
+                                },
+                                SelectionTree {
+                                    label: "More".to_string(),
+                                    value: Node(vec![
+                                        SelectionTree {
+                                            label: "165W".to_string(),
+                                            value: Leaf(NotExit("165W")),
+                                        },
+                                        SelectionTree {
+                                            label: "170W".to_string(),
+                                            value: Leaf(NotExit("170W")),
+                                        },
+                                        SelectionTree {
+                                            label: "175W".to_string(),
+                                            value: Leaf(NotExit("175W")),
+                                        },
+                                        SelectionTree {
+                                            label: "180W".to_string(),
+                                            value: Leaf(NotExit("180W")),
+                                        },
+                                        SelectionTree {
+                                            label: "185W".to_string(),
+                                            value: Leaf(NotExit("185W")),
+                                        },
+                                    ]),
+                                },
+                            ]),
+                        },
+                        SelectionTree {
+                            label: "Ramp".to_string(),
+                            value: Leaf(NotExit("Ramp")),
+                        },
+                        SelectionTree {
+                            label: "1st Big Interval".to_string(),
+                            value: Leaf(NotExit("1st Big Interval")),
+                        },
+                    ]),
+                },
+                SelectionTree {
+                    label: "Tests".to_string(),
+                    value: Node(vec![
+                        SelectionTree {
+                            label: "GPS Only".to_string(),
+                            value: Leaf(NotExit("GPS Only")),
+                        },
+                        SelectionTree {
+                            label: "GPS & HR".to_string(),
+                            value: Leaf(NotExit("GPS & HR")),
+                        },
+                        SelectionTree {
+                            label: "P/H/70W".to_string(),
+                            value: Leaf(NotExit("P/H/70W")),
+                        },
+                        SelectionTree {
+                            label: "P/H/Ramp".to_string(),
+                            value: Leaf(NotExit("P/H/Ramp")),
+                        },
+                    ]),
+                },
+                SelectionTree {
+                    label: "Exit".to_string(),
+                    value: Leaf(Exit),
+                },
             ],
         );
 
@@ -605,36 +645,38 @@ pub fn main() {
     }
 }
 
-// TODO: Leaves should also have labels
 #[derive(Clone)]
-enum SelectionTree<T> {
-    Leaf(T),
-    Node((String, Vec<SelectionTree<T>>)),
+pub struct SelectionTree<T> {
+    label: String,
+    value: SelectionTreeValue<T>,
 }
 
-impl<T: std::fmt::Display> std::fmt::Display for SelectionTree<T> {
+#[derive(Clone)]
+enum SelectionTreeValue<T> {
+    Leaf(T),
+    Node(Vec<SelectionTree<T>>),
+}
+
+impl<T> std::fmt::Display for SelectionTree<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SelectionTree::Leaf(t) => write!(f, "{}", t),
-            SelectionTree::Node((label, _)) => write!(f, "{}", label),
-        }
+        write!(f, "{}", self.label)
     }
 }
 
 // TODO: Sets of choices should also likely have labels, like "choose your
 // favorite breakfast food:"
-fn selection_tree<O: std::fmt::Display + Clone>(
+fn selection_tree<O: Clone>(
     mut display: &mut display::Display,
     mut buttons: &mut buttons::Buttons,
     tree: Vec<SelectionTree<O>>,
 ) -> O {
     let mut t = tree;
     loop {
-        match selection(&mut display, &mut buttons, &t) {
-            SelectionTree::Node((_, selected_tree)) => {
+        match selection(&mut display, &mut buttons, &t).value {
+            SelectionTreeValue::Node(selected_tree) => {
                 t = selected_tree;
             }
-            SelectionTree::Leaf(x) => {
+            SelectionTreeValue::Leaf(x) => {
                 break x;
             }
         }
@@ -759,9 +801,18 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
                         display,
                         buttons,
                         vec![
-                            SelectionTree::Leaf(SetupNextStep::TryAgain),
-                            SelectionTree::Leaf(SetupNextStep::ContinueWithout),
-                            SelectionTree::Leaf(SetupNextStep::Crash),
+                            SelectionTree {
+                                label: "Try Again".to_string(),
+                                value: SelectionTreeValue::Leaf(SetupNextStep::TryAgain),
+                            },
+                            SelectionTree {
+                                label: "Continue Without".to_string(),
+                                value: SelectionTreeValue::Leaf(SetupNextStep::ContinueWithout),
+                            },
+                            SelectionTree {
+                                label: "Exit".to_string(),
+                                value: SelectionTreeValue::Leaf(SetupNextStep::Crash),
+                            },
                         ],
                     );
                     match choice {
