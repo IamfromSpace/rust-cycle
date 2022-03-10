@@ -170,7 +170,7 @@ pub fn ramp_test(warmup_power: u16) -> Workout {
     v.push(CycleTree::Leaf((Duration::from_secs(300), warmup_power)));
     let mut power = 100;
     for _ in 0..49 {
-        v.push(CycleTree::Leaf((Duration::from_secs(30), warmup_power)));
+        v.push(CycleTree::Leaf((Duration::from_secs(30), power)));
         power = power + 15
     }
     Workout::new(CycleTree::Node((1, v)), None)
