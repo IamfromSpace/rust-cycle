@@ -135,6 +135,7 @@ pub fn main() {
                     value: Leaf(Exit),
                 },
             ],
+            &"Choose profile",
         );
 
         let devices = match devices {
@@ -221,6 +222,7 @@ pub fn main() {
                     )),
                 },
             ],
+            &"Choose workout",
         );
 
         // We want instant, because we want this to be monotonic. We don't want
@@ -634,10 +636,11 @@ fn selection_tree<O: Clone>(
     mut display: &mut display::Display,
     mut buttons: &mut buttons::Buttons,
     tree: Vec<SelectionTree<O>>,
+    label: &str,
 ) -> O {
     let mut t = tree;
     loop {
-        match selection(&mut display, &mut buttons, &t).value {
+        match selection(&mut display, &mut buttons, &t, label).value {
             SelectionTreeValue::Node(selected_tree) => {
                 t = selected_tree;
             }
@@ -652,6 +655,7 @@ fn selection<O: std::fmt::Display + Clone>(
     display: &mut display::Display,
     buttons: &mut buttons::Buttons,
     options: &Vec<O>,
+    label: &str,
 ) -> O {
     if options.len() < 1 || options.len() > 5 {
         panic!("Unsupported selection length!");
@@ -681,7 +685,7 @@ fn selection<O: std::fmt::Display + Clone>(
     }
 
     let strings: Vec<String> = options.iter().map(|x| format!("{}", x)).collect();
-    display.render_options(&strings.iter().map(|x| &**x).collect());
+    display.render_options(label, &strings.iter().map(|x| &**x).collect());
 
     let index = loop {
         {
@@ -779,6 +783,7 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
                                 value: SelectionTreeValue::Leaf(SetupNextStep::Crash),
                             },
                         ],
+                        &format!("{} failed to connect", name),
                     );
                     match choice {
                         SetupNextStep::TryAgain => {

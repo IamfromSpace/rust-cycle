@@ -95,12 +95,12 @@ impl Display {
         self.memory_lcd.update();
     }
 
-    pub fn render_options(&mut self, options: &Vec<&str>) {
+    pub fn render_options(&mut self, label: &str, options: &Vec<&str>) {
         // TODO: This also flickers, but stince it doesn't always
         // over draw like rendering does, it not safe to use the
         // same has_rendered approach.
         self.memory_lcd.clear(BinaryColor::Off).unwrap();
-        OptionDisplay::new(&options[..])
+        OptionDisplay::new(label, &options[..])
             .draw(&mut self.memory_lcd)
             .unwrap();
         self.add_version();
@@ -655,32 +655,39 @@ impl<'a> Drawable<BinaryColor> for MsgDisplay<'a> {
     }
 }
 
-pub struct OptionDisplay<'a, 'b>(&'a [&'b str]);
+pub struct OptionDisplay<'a, 'b, 'c> {
+    label: &'c str,
+    options: &'a [&'b str],
+}
 
-impl<'a, 'b> OptionDisplay<'a, 'b> {
-    pub fn new(opts: &'a [&'b str]) -> OptionDisplay<'a, 'b> {
-        OptionDisplay(opts)
+impl<'a, 'b, 'c> OptionDisplay<'a, 'b, 'c> {
+    pub fn new(label: &'c str, options: &'a [&'b str]) -> OptionDisplay<'a, 'b, 'c> {
+        OptionDisplay { label, options }
     }
 }
 
-impl<'a, 'b> Drawable<BinaryColor> for OptionDisplay<'a, 'b> {
+impl<'a, 'b, 'c> Drawable<BinaryColor> for OptionDisplay<'a, 'b, 'c> {
     fn draw<D: DrawTarget<BinaryColor>>(self, target: &mut D) -> Result<(), D::Error> {
         let style_large = TextStyleBuilder::new(Font8x16)
             .text_color(BinaryColor::On)
             .background_color(BinaryColor::Off)
             .build();
 
-        for i in 0..self.0.len() {
-            let option_num = i + 1;
+        Text::new(self.label, geometry::Point::new(10, 2 + 16 + 4))
+            .into_styled(style_large)
+            .draw(target)?;
+
+        for i in 0..self.options.len() {
+            let i = i + 1;
             Text::new(
-                &format!("{}: {}", option_num, (self.0)[i]),
+                &format!("{}: {}", i, (self.options)[i]),
                 geometry::Point::new(10, (i as i32) * 16 + 2 + 16 + 4),
             )
             .into_styled(style_large)
             .draw(target)?;
 
             Text::new(
-                &format!("{}", option_num),
+                &format!("{}", i),
                 geometry::Point::new(42 + (i as i32) * 37, 2),
             )
             .into_styled(style_large)
