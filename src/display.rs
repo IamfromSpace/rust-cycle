@@ -680,7 +680,7 @@ impl<'a, 'b, 'c> Drawable<BinaryColor> for OptionDisplay<'a, 'b, 'c> {
         for i in 0..self.options.len() {
             let i = i + 1;
             Text::new(
-                &format!("{}: {}", i, (self.options)[i]),
+                &format!("{}: {}", i, (self.options)[i - 1]),
                 geometry::Point::new(10, (i as i32) * 16 + 2 + 16 + 4),
             )
             .into_styled(style_large)
