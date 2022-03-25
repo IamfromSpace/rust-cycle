@@ -688,7 +688,7 @@ impl<'a, 'b, 'c> Drawable<BinaryColor> for OptionDisplay<'a, 'b, 'c> {
 
             Text::new(
                 &format!("{}", i),
-                geometry::Point::new(42 + (i as i32) * 37, 2),
+                geometry::Point::new(42 + ((i as i32) - 1) * 37, 2),
             )
             .into_styled(style_large)
             .draw(target)?;
