@@ -231,17 +231,20 @@ pub fn main() {
 
         display.set_start(Some(start));
 
-        // This won't fail unless the clock is before epoch, which sounds like a
-        // bigger problem
-        // TODO: However, there's no guarantee that this value doesn't go _backwards_, which means
-        // sessions can be recorded out of order (this has happened).  We could use `max(now,
-        // last_session.key+1)`, but that means that one very late clock ruins the ability to
-        // determine when they were captured from the timestamp (at which point a monotonic counter
-        // makes as much or more sense).
-        let session_key = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        // To make sure we never go backwards (the real time clock is not
+        // reliable especially after a crash or if wifi is unavailable), we make
+        // the session key larger than the most recent previous one.
+        let session_key = u64::max(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                // This won't fail unless the clock is before epoch, which
+                // sounds like a bigger problem
+                .unwrap()
+                .as_secs(),
+            // TODO: one very late clock ruins the ability to determine when
+            // they were captured from the timestamp.
+            db.get_most_recent_session().unwrap().unwrap_or(0) + 1,
+        );
 
         let mut o_gps =
             user_connect_or_skip(&mut display, &mut buttons, devices.gps, "GPS", || {
