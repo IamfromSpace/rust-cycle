@@ -71,7 +71,8 @@ pub fn main() {
 
     let args: BTreeSet<String> = env::args().collect();
     let is_version_mode = args.contains("-v") || args.contains("--version");
-    let version = git_version::git_version!();
+    // TODO: There's probably an alternate way to do this with nix
+    let version = "TODO"; // git_version::git_version!();
 
     if is_version_mode {
         // TODO: It might be handy to put this on the display
