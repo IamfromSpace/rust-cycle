@@ -1,26 +1,14 @@
 let
-  # TODO: We can compile, but the interpreter doesn't seem to line up and the executable won't run
-  pinnedPkgsTar =
-    builtins.fetchTarball {
-      name = "nixos-23.11";
-      url = "https://github.com/nixos/nixpkgs/archive/04220ed6763637e5899980f98d5c8424b1079353.tar.gz";
-    };
-
-  targetPlatform =
-    "arm-unknown-linux-musleabihf";
-
   pkgs =
     import
-      pinnedPkgsTar
-      {
-        crossSystem = {
-          config = targetPlatform;
-          rustc.config = targetPlatform;
-        };
-      };
+      (builtins.fetchTarball {
+        name = "nixos-23.11";
+        url = "https://github.com/nixos/nixpkgs/archive/04220ed6763637e5899980f98d5c8424b1079353.tar.gz";
+      })
+      {};
 
 in
-pkgs.rustPlatform.buildRustPackage rec {
+pkgs.pkgsCross.muslpi.pkgsStatic.rustPlatform.buildRustPackage rec {
   pname = "rust-cycle";
   version = "0.2.0";
   cargoLock = {
