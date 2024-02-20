@@ -815,7 +815,7 @@ fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
 fn crash_with_msg<T>(display: &mut display::Display, msg: &'static str) -> T {
     display.render_msg(msg);
     thread::sleep(Duration::from_secs(1));
-    panic!(msg)
+    panic!("{}", msg)
 }
 
 fn or_crash_with_msg<T>(display: &mut display::Display, x: Option<T>, msg: &'static str) -> T {
