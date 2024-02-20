@@ -6,31 +6,22 @@ Rust Cycle is a (WIP) bicycle computer built on Rust!
 
 ### Local Screen Simulator
 
-A simulator can be used for the display.
-It uses `embedded_graphics_simulator`, so follow the setup [here](https://docs.rs/embedded-graphics-simulator/0.2.0/embedded_graphics_simulator/index.html#setup).
+Use the local nix derivation:
 
-Then, when building pass in the "simulator" feature.
+```
+nix-build ./local.nix
+```
 
 ### For Pi Zero
 
-#### Install libs
-
-Install the rustup target:
-
-```
-rustup target add arm-unknown-linux-gnueabihf
-```
-
-Get the linker from raspberrypi tools.
-
-Point cargo to the linker in `.cargo/config`.
-
 #### Create Binary
 
-create the executable:
+Create the executable with nix.
+The environment is necessary since we are cross compiling, so were building a package that won't work on our host system.
+Nix, rightly, worries that you may be doing this in error.
 
 ```
-cargo build --release --target=arm-unknown-linux-gnueabihf
+NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nix-build
 ```
 
 #### Deploy
