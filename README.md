@@ -17,11 +17,9 @@ nix-build ./local.nix
 #### Create Binary
 
 Create the executable with nix.
-The environment is necessary since we are cross compiling, so were building a package that won't work on our host system.
-Nix, rightly, worries that you may be doing this in error.
 
 ```
-NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nix-build
+nix-build
 ```
 
 #### Deploy
