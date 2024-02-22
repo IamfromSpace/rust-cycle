@@ -1,8 +1,11 @@
 { useSimulator }:
-  { rustPlatform, lib }:
+  { rustPlatform, lib, SDL2 }:
     rustPlatform.buildRustPackage rec {
       pname = "rust-cycle";
       version = "0.2.0";
+      # embedded-graphics-simulator requires SDL2
+      # TODO: why doesn't buildRustPackage already know this?
+      buildInputs = if useSimulator then [ SDL2 ] else [];
       buildFeatures = if useSimulator then [ "simulator" ] else [];
       cargoLock = {
         lockFile = ./Cargo.lock;
