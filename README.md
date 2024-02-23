@@ -12,6 +12,9 @@ Use the local nix derivation:
 nix-build ./local.nix
 ```
 
+Ensure that bluetooth is enabled.
+In nixos, set `hardware.bluetooth.enabled = true` in your `/etc/nixos/configuaration.nix` file.
+
 ### For Pi Zero
 
 #### Create Binary
