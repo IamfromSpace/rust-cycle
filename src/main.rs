@@ -26,17 +26,19 @@ use ble::{
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
-use btleplug::api::Central;
-use btleplug::bluez::manager::Manager;
+use btleplug::api::{Central, Manager as _, ScanFilter, Peripheral};
+use btleplug::platform::Manager;
 use btleplug::Error::DeviceNotFound;
-use peripherals::{
-    assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
-};
+use peripherals::hrm;
+// use peripherals::{
+//     assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
+// };
 use std::collections::BTreeSet;
 use std::env;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use futures::stream::StreamExt;
 use workout::{create_big_start_interval, ramp_test, single_value};
 
 // TODO:  Allow calibration
@@ -66,7 +68,8 @@ struct SelectedDevices {
     speed: bool,
 }
 
-pub fn main() {
+#[tokio::main]
+pub async fn main() {
     env_logger::init();
 
     let args: BTreeSet<String> = env::args().collect();
@@ -91,6 +94,7 @@ pub fn main() {
         // simulator mode.
         let mut buttons = buttons::Buttons::new();
 
+        /*
         // TODO: Select Enums
         use OrExit::{Exit, NotExit};
         use SelectionTreeValue::{Leaf, Node};
@@ -225,6 +229,16 @@ pub fn main() {
             ],
             &"Choose workout",
         );
+        */
+        let devices = SelectedDevices {
+                        assioma: true,
+                        cadence: false,
+                        gps: false,
+                        hr: true,
+                        kickr: false,
+                        speed: false,
+                    };
+        let workout = single_value(100);
 
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
@@ -258,6 +272,7 @@ pub fn main() {
         let central = or_crash_with_msg(
             &mut display,
             setup_ble_and_discover_devices()
+                .await
                 // Result to Option
                 // TODO: Loses original error
                 .ok()
@@ -267,6 +282,7 @@ pub fn main() {
         );
         display.render_msg("Connecting to Devices.");
 
+        /*
         let mut o_speed = user_connect_or_skip(
             &mut display,
             &mut buttons,
@@ -274,15 +290,26 @@ pub fn main() {
             "Speed Measure",
             || squish_error(Speed::new(central.clone())),
         );
+        */
 
+        /* TODO: get this working, weird async retrying
         let mut o_hrm = user_connect_or_skip(
             &mut display,
             &mut buttons,
             devices.hr,
             "Heart Rate Monitor",
-            || squish_error(Hrm::new(central.clone())),
+            || async { squish_error(Hrm::new(central.clone()).await) },
         );
+        */
+        // TODO: Can't use ?
+        let mut o_hrm =
+           if devices.hr {
+               Some(or_crash_with_msg(&mut display, hrm::connect(&central).await.unwrap(), "HR Monitor was requested but not found."))
+           } else {
+               None
+           };
 
+        /*
         let mut o_kickr =
             user_connect_or_skip(&mut display, &mut buttons, devices.kickr, "Kickr", || {
                 squish_error(Kickr::new(central.clone()))
@@ -303,6 +330,7 @@ pub fn main() {
             "Cadence Measure",
             || squish_error(Cadence::new(central.clone())),
         );
+        */
 
         // We now need a mutex, so we can share the display out to multiple
         // peripherals
@@ -331,6 +359,7 @@ pub fn main() {
             lock_and_show(&display_mutex, &format!("GPS Ready"));
         }
 
+        /*
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
         for speed_measure in &mut o_speed {
@@ -360,29 +389,35 @@ pub fn main() {
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Speed Monitor");
         }
+        */
 
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
         for hrm in &mut o_hrm {
             let db_hrm = db.clone();
             let display_mutex_hrm = display_mutex.clone();
-            hrm.on_notification(Box::new(move |n| {
-                let mut display = display_mutex_hrm.lock().unwrap();
-                display.update_heart_rate(Some(parse_hrm(&n.value).bpm as u8));
-                let elapsed = start.elapsed();
-                db_hrm
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            // TODO: Cannot use ? in async block that returns ()
+            let mut notifications = hrm.notifications().await.unwrap();
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let mut display = display_mutex_hrm.lock().unwrap();
+                    display.update_heart_rate(Some(parse_hrm(&n.value).bpm as u8));
+                    let elapsed = start.elapsed();
+                    db_hrm
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
+                };
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
         }
 
         let use_assioma = devices.assioma;
 
+        /*
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
         for kickr in &mut o_kickr {
@@ -538,6 +573,7 @@ pub fn main() {
                 display.set_page(display::Page::PowerTrack(p as i16));
             }
         });
+        */
 
         // TODO: The Combo of Buttons and Display should make up a sort of
         // "UserInterface" that hides the buttons (this would make using the
@@ -557,6 +593,7 @@ pub fn main() {
         // TODO: Quite a lot of repetition here to ensure that changes to the
         // target refect immediately.
 
+        /*
         let power_target_mutex_power_track_page = power_target_mutex.clone();
         let display_mutex_power_track_page = display_mutex.clone();
         buttons.on_press(
@@ -582,6 +619,7 @@ pub fn main() {
             Duration::from_secs(2),
             Box::new(move || workout::add_offset(&workout_state, 5)),
         );
+        */
 
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
@@ -611,7 +649,9 @@ pub fn main() {
         });
 
         render_handle.join().unwrap();
+        /*
         workout_handle.exit();
+        */
         lock_and_show(&display_mutex, &"Goodbye");
     }
 }
@@ -712,31 +752,22 @@ fn selection<O: std::fmt::Display + Clone>(
 // central preforms a 5s scan, and then that central is returned.  This returns
 // a Error if there was a BLE error, and it returns an Ok(None) if there are no
 // adapters available.
-fn setup_ble_and_discover_devices(
-) -> btleplug::Result<Option<btleplug::bluez::adapter::ConnectedAdapter>> {
+async fn setup_ble_and_discover_devices() -> btleplug::Result<Option<btleplug::platform::Adapter>> {
     println!("Getting Manager...");
-    let manager = Manager::new()?;
+    let manager = Manager::new().await?;
 
-    let adapters = manager.adapters()?;
+    println!("Getting Adapters...");
+    let adapters = manager.adapters().await.unwrap();
 
     match adapters.into_iter().next() {
-        Some(adapter) => {
-            manager.down(&adapter)?;
-            manager.up(&adapter)?;
-
-            let central = adapter.connect()?;
-            // There's a bug in 0.4 that does not default the scan to active.
-            // Without an active scan the Polar H10 will not give back its name.
-            // TODO: remove this line after merge and upgrade.
-            central.active(true);
-
+        Some(central) => {
             println!("Starting Scan...");
-            central.start_scan()?;
+            central.start_scan(ScanFilter::default()).await?;
 
-            thread::sleep(Duration::from_secs(5));
+            tokio::time::sleep(Duration::from_secs(5)).await;
 
             println!("Stopping scan...");
-            central.stop_scan()?;
+            central.stop_scan().await?;
             Ok(Some(central))
         }
         None => Ok(None),
@@ -904,6 +935,7 @@ fn db_session_to_fit_records(
                     telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                         r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     }
+                    /*
                     telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
                         let power_measure = parse_cycling_power_measurement(&v);
                         r.power = Some(power_measure.instantaneous_power as u16);
@@ -918,6 +950,7 @@ fn db_session_to_fit_records(
                         }
                         last_power_measure = Some(power_measure);
                     }
+                    */
                     telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
                         // TODO: Clean up cloning here that supports crank and wheel
                         // data coming from different sources :/

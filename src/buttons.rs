@@ -48,10 +48,12 @@ pub struct Buttons {
 // Need to doublecheck this whole 'static thing
 impl Buttons {
     pub fn new() -> Buttons {
+        /*
         let mut bus = I2c::with_bus(1).unwrap();
         bus.set_slave_address(ADDR).unwrap();
         // I belive this enables the buttons?
         bus.smbus_write_byte(REG_CONFIG, 0b00011111).unwrap();
+        */
 
         let mut last_states = 0b00011111;
         let running_mutex = Arc::new(Mutex::new(true));
@@ -68,6 +70,7 @@ impl Buttons {
         let handlers_mutex_thread = handlers_mutex.clone();
         let running_mutex_thread = running_mutex.clone();
         let join_handle = Some(thread::spawn(move || {
+            /*
             loop {
                 {
                     if !*running_mutex_thread.lock().unwrap() {
@@ -135,6 +138,7 @@ impl Buttons {
                 // TODO: I believe this can be arbitrary...
                 thread::sleep(Duration::from_millis(50));
             }
+            */
         }));
 
         Buttons {

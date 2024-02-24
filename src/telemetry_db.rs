@@ -1,4 +1,4 @@
-use btleplug::api::UUID;
+use uuid::Uuid;
 use nmea0183::ParseResult;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
@@ -18,13 +18,13 @@ pub struct TelemetryDb {
 // cadence.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Notification {
-    Ble((UUID, Vec<u8>)),
+    Ble((Uuid, Vec<u8>)),
     Gps(ParseResult),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 enum NotificationType {
-    Ble(UUID),
+    Ble(Uuid),
     Gps,
 }
 
