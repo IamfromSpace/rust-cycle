@@ -33,36 +33,43 @@ pub async fn connect<P: Peripheral, C: Central<Peripheral=P> + 'static>(central:
             peripheral.discover_services().await?;
             println!("All characteristics discovered");
 
-            let hr_measurement = peripheral
+            let o_hr_measurement = peripheral
                 .characteristics()
                 .into_iter()
-                .find(|c| c.uuid == MEASURE_UUID)
-                .unwrap();
+                .find(|c| c.uuid == MEASURE_UUID);
 
-            peripheral.subscribe(&hr_measurement).await?;
-            println!("Subscribed to hr measure");
+            match o_hr_measurement {
+                None => {
+                    peripheral.disconnect().await?;
+                    Ok(None)
+                },
+                Some(hr_measurement) => {
+                    peripheral.subscribe(&hr_measurement).await?;
+                    println!("Subscribed to hr measure");
 
-            let central_for_disconnects = central.clone();
-            let mut events = central.events().await?;
-            tokio::spawn(async move {
-                while let Some(evt) = events.next().await {
-                    if let CentralEvent::DeviceDisconnected(addr) = evt {
-                        let p = central_for_disconnects.peripheral(&addr).await.unwrap();
-                        if is_hrm(&p).await.unwrap() {
-                            let mut wait = 2;
-                            loop {
-                                tokio::time::sleep(Duration::from_secs(wait)).await;
-                                if p.connect().await.is_ok() {
-                                    break;
+                    let central_for_disconnects = central.clone();
+                    let mut events = central.events().await?;
+                    tokio::spawn(async move {
+                        while let Some(evt) = events.next().await {
+                            if let CentralEvent::DeviceDisconnected(addr) = evt {
+                                let p = central_for_disconnects.peripheral(&addr).await.unwrap();
+                                if is_hrm(&p).await.unwrap() {
+                                    let mut wait = 2;
+                                    loop {
+                                        tokio::time::sleep(Duration::from_secs(wait)).await;
+                                        if p.connect().await.is_ok() {
+                                            break;
+                                        }
+                                        wait = wait * 2;
+                                    }
                                 }
-                                wait = wait * 2;
                             }
-                        }
-                    }
-                };
-            });
+                        };
+                    });
 
-            Ok(Some(peripheral))
+                    Ok(Some(peripheral))
+                }
+            }
         }
         None => Ok(None),
     }
