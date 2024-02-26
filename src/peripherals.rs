@@ -1,4 +1,4 @@
-// pub mod assioma;
+pub mod assioma;
 // pub mod cadence;
 pub mod hrm;
 // pub mod kickr;

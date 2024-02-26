@@ -29,7 +29,7 @@ use ble::{
 use btleplug::api::{Central, Manager as _, ScanFilter, Peripheral};
 use btleplug::platform::Manager;
 use btleplug::Error::DeviceNotFound;
-use peripherals::hrm;
+use peripherals::{hrm, assioma};
 // use peripherals::{
 //     assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
 // };
@@ -234,7 +234,7 @@ pub async fn main() {
                         assioma: true,
                         cadence: false,
                         gps: false,
-                        hr: true,
+                        hr: false,
                         kickr: false,
                         speed: false,
                     };
@@ -322,7 +322,16 @@ pub async fn main() {
             "Assioma Pedals",
             || squish_error(Assioma::new(central.clone())),
         );
+        */
+        // TODO: Can't use ?
+        let mut o_assioma =
+           if devices.assioma {
+               Some(or_crash_with_msg(&mut display, assioma::connect(&central).await.unwrap(), "Assioma was requested but not found."))
+           } else {
+               None
+           };
 
+        /*
         let mut o_cadence = user_connect_or_skip(
             &mut display,
             &mut buttons,
@@ -466,6 +475,7 @@ pub async fn main() {
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
         }
+        */
 
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
@@ -475,39 +485,44 @@ pub async fn main() {
             let mut acc_torque = 0.0;
             let db_power_measure = db.clone();
             let display_mutex_assioma = display_mutex.clone();
-            assioma.on_notification(Box::new(move |n| {
-                let elapsed = start.elapsed();
-                let power_measure = parse_cycling_power_measurement(&n.value);
-                let r = cycling_power_measurement::checked_crank_rpm_and_new_count(
-                    o_last_power_measure.as_ref(),
-                    &power_measure,
-                );
-                let mut display = display_mutex_assioma.lock().unwrap();
-                if let Some((rpm, new_crank_count)) = r {
-                    crank_count = crank_count + new_crank_count;
-                    display.update_cadence(Some(rpm as u8));
-                    display.update_crank_count(crank_count);
+            // TODO: Cannot use ? in async block that returns ()
+            let mut notifications = assioma.notifications().await.unwrap();
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let elapsed = start.elapsed();
+                    let power_measure = parse_cycling_power_measurement(&n.value);
+                    let r = cycling_power_measurement::checked_crank_rpm_and_new_count(
+                        o_last_power_measure.as_ref(),
+                        &power_measure,
+                    );
+                    let mut display = display_mutex_assioma.lock().unwrap();
+                    if let Some((rpm, new_crank_count)) = r {
+                        crank_count = crank_count + new_crank_count;
+                        display.update_cadence(Some(rpm as u8));
+                        display.update_crank_count(crank_count);
+                    }
+                    let o_new_acc_torque = o_last_power_measure
+                        .as_ref()
+                        .and_then(|x| x.new_accumulated_torque(&power_measure));
+                    if let Some(new_acc_torque) = o_new_acc_torque {
+                        acc_torque = acc_torque + new_acc_torque;
+                        display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                    }
+                    display.update_power(Some(power_measure.instantaneous_power));
+                    o_last_power_measure = Some(power_measure);
+                    db_power_measure
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 }
-                let o_new_acc_torque = o_last_power_measure
-                    .as_ref()
-                    .and_then(|x| x.new_accumulated_torque(&power_measure));
-                if let Some(new_acc_torque) = o_new_acc_torque {
-                    acc_torque = acc_torque + new_acc_torque;
-                    display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
-                }
-                display.update_power(Some(power_measure.instantaneous_power));
-                o_last_power_measure = Some(power_measure);
-                db_power_measure
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Assioma Pedals!");
         }
 
+        /*
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
         for cadence_measure in &mut o_cadence {
@@ -935,8 +950,7 @@ fn db_session_to_fit_records(
                     telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                         r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     }
-                    /*
-                    telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
+                    telemetry_db::Notification::Ble((assioma::MEASURE_UUID, v)) => {
                         let power_measure = parse_cycling_power_measurement(&v);
                         r.power = Some(power_measure.instantaneous_power as u16);
                         let o_crank_rpm =
@@ -950,7 +964,6 @@ fn db_session_to_fit_records(
                         }
                         last_power_measure = Some(power_measure);
                     }
-                    */
                     telemetry_db::Notification::Ble((csc_measurement::MEASURE_UUID, v)) => {
                         // TODO: Clean up cloning here that supports crank and wheel
                         // data coming from different sources :/
