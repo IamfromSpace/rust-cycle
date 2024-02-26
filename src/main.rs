@@ -562,6 +562,7 @@ pub async fn main() {
         // tail?  That would make this more intuitive.  Then at the end of the
         // workout, the program exits (and systemd restarts it).
         let o_kickr = Arc::new(o_kickr);
+        */
 
         // TODO: It's dumb that were managing these two separate mutexes (power
         // target and display).  The target should just be private state of the
@@ -571,13 +572,18 @@ pub async fn main() {
         let power_target_mutex = Arc::new(Mutex::new(0));
 
         let power_target_mutex_workout = power_target_mutex.clone();
+
+        /*
         let o_kickr_for_workout = o_kickr.clone();
+        */
         let display_mutex_workout = display_mutex.clone();
         let mut workout_handle = workout.run(Instant::now(), move |p| {
+            /*
             // If there's a connected Kickr, set its ERG mode power
             for kickr in o_kickr_for_workout.iter() {
                 kickr.set_power(p).unwrap();
             }
+            */
 
             // Update our power target used by the display, and update the
             // display immediately
@@ -588,7 +594,6 @@ pub async fn main() {
                 display.set_page(display::Page::PowerTrack(p as i16));
             }
         });
-        */
 
         // TODO: The Combo of Buttons and Display should make up a sort of
         // "UserInterface" that hides the buttons (this would make using the
@@ -608,7 +613,6 @@ pub async fn main() {
         // TODO: Quite a lot of repetition here to ensure that changes to the
         // target refect immediately.
 
-        /*
         let power_target_mutex_power_track_page = power_target_mutex.clone();
         let display_mutex_power_track_page = display_mutex.clone();
         buttons.on_press(
@@ -634,7 +638,6 @@ pub async fn main() {
             Duration::from_secs(2),
             Box::new(move || workout::add_offset(&workout_state, 5)),
         );
-        */
 
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
@@ -664,9 +667,7 @@ pub async fn main() {
         });
 
         render_handle.join().unwrap();
-        /*
         workout_handle.exit();
-        */
         lock_and_show(&display_mutex, &"Goodbye");
     }
 }
