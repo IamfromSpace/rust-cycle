@@ -100,10 +100,10 @@ pub async fn main() {
         // simulator mode.
         let mut buttons = buttons::Buttons::new();
 
-        /*
         // TODO: Select Enums
         use OrExit::{Exit, NotExit};
         use SelectionTreeValue::{Leaf, Node};
+        #[cfg(not(feature = "simulator"))]
         let devices = selection_tree(
             &mut display,
             &mut buttons,
@@ -149,6 +149,7 @@ pub async fn main() {
             &"Choose profile",
         );
 
+        #[cfg(not(feature = "simulator"))]
         let devices = match devices {
             Exit => {
                 display.render_msg("Goodbye");
@@ -167,6 +168,7 @@ pub async fn main() {
             NotExit(x) => x,
         };
 
+        #[cfg(not(feature = "simulator"))]
         let workout = selection_tree(
             &mut display,
             &mut buttons,
@@ -235,7 +237,8 @@ pub async fn main() {
             ],
             &"Choose workout",
         );
-        */
+
+        #[cfg(feature = "simulator")]
         let devices = SelectedDevices {
                         assioma: true,
                         cadence: false,
@@ -244,6 +247,7 @@ pub async fn main() {
                         kickr: false,
                         speed: false,
                     };
+        #[cfg(feature = "simulator")]
         let workout = single_value(100);
 
         // We want instant, because we want this to be monotonic. We don't want
