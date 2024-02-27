@@ -58,6 +58,12 @@ enum SetupNextStep {
     Crash,
 }
 
+#[derive(Clone, Debug)]
+enum IgnorableError {
+    Ignore,
+    Exit,
+}
+
 #[derive(Clone)]
 struct SelectedDevices {
     assioma: bool,
@@ -234,7 +240,7 @@ pub async fn main() {
                         assioma: true,
                         cadence: false,
                         gps: false,
-                        hr: false,
+                        hr: true,
                         kickr: false,
                         speed: false,
                     };
@@ -304,7 +310,22 @@ pub async fn main() {
         // TODO: Can't use ?
         let mut o_hrm =
            if devices.hr {
-               Some(or_crash_with_msg(&mut display, hrm::connect(&central).await.unwrap(), "HR Monitor was requested but not found."))
+               match squish_error(hrm::connect(&central).await) {
+                   Ok(hrm) => Some(hrm),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &mut buttons,
+                           "HR Monitor connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "HR Monitor connect error.")
+                           }
+                       }
+                   }
+               }
            } else {
                None
            };
@@ -852,6 +873,30 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
             break None;
         }
     }
+}
+
+fn prompt_ignore_or_exit(
+    display: &mut display::Display,
+    buttons: &mut buttons::Buttons,
+    msg: &str,
+) -> IgnorableError {
+    display.render_msg(&format!("{}", msg));
+    thread::sleep(Duration::from_secs(1));
+    selection_tree(
+        display,
+        buttons,
+        vec![
+            SelectionTree {
+                label: "Ignore and Continue".to_string(),
+                value: SelectionTreeValue::Leaf(IgnorableError::Ignore),
+            },
+            SelectionTree {
+                label: "Exit".to_string(),
+                value: SelectionTreeValue::Leaf(IgnorableError::Exit),
+            },
+        ],
+        &format!("{}", msg),
+    )
 }
 
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
