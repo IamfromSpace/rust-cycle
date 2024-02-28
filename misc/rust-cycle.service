@@ -8,6 +8,7 @@ ExecStart=${PATH_TO_BINARY_ON_TARGET}
 WorkingDirectory=${WHERE_DB_WILL_BE_OPERATED}
 Restart=always
 User=pi
+CPUSchedulingPriority=80
 
 [Install]
 WantedBy=multi-user.target
