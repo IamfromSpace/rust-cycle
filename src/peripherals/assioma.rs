@@ -55,15 +55,18 @@ pub async fn connect<P: Peripheral, C: Central<Peripheral=P> + 'static>(central:
                     tokio::spawn(async move {
                         while let Some(evt) = events.next().await {
                             if let CentralEvent::DeviceDisconnected(addr) = evt {
+                                println!("Assioma Disconnected.");
                                 let p = central_for_disconnects.peripheral(&addr).await.unwrap();
                                 if is_assioma(&p).await.unwrap() {
-                                    let mut wait = 2;
+                                    let wait = Duration::from_secs(10);
                                     loop {
-                                        tokio::time::sleep(Duration::from_secs(wait)).await;
+                                        tokio::time::sleep(wait).await;
+                                        println!("Attempting Assioma reconnect.");
                                         if p.connect().await.is_ok() {
+                                            println!("Assioma reconnected.");
                                             break;
                                         }
-                                        wait = wait * 2;
+                                        println!("Assioma reconnect failed.");
                                     }
                                 }
                             }
