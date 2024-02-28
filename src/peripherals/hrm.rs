@@ -52,15 +52,18 @@ pub async fn connect<P: Peripheral, C: Central<Peripheral=P> + 'static>(central:
                     tokio::spawn(async move {
                         while let Some(evt) = events.next().await {
                             if let CentralEvent::DeviceDisconnected(addr) = evt {
+                                println!("HRM Disconnected.");
                                 let p = central_for_disconnects.peripheral(&addr).await.unwrap();
                                 if is_hrm(&p).await.unwrap() {
-                                    let mut wait = 2;
+                                    let wait = Duration::from_secs(10);
                                     loop {
-                                        tokio::time::sleep(Duration::from_secs(wait)).await;
+                                        tokio::time::sleep(wait).await;
+                                        println!("Attempting HRM reconnect.");
                                         if p.connect().await.is_ok() {
+                                            println!("HRM reconnected.");
                                             break;
                                         }
-                                        wait = wait * 2;
+                                        println!("HRM reconnect failed.");
                                     }
                                 }
                             }
