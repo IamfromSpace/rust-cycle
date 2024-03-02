@@ -302,15 +302,6 @@ pub async fn main() {
         );
         */
 
-        /* TODO: get this working, weird async retrying
-        let mut o_hrm = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.hr,
-            "Heart Rate Monitor",
-            || async { squish_error(Hrm::new(central.clone()).await) },
-        );
-        */
         // TODO: Can't use ?
         let mut o_hrm =
            if devices.hr {
@@ -339,15 +330,8 @@ pub async fn main() {
             user_connect_or_skip(&mut display, &mut buttons, devices.kickr, "Kickr", || {
                 squish_error(Kickr::new(central.clone()))
             });
-
-        let mut o_assioma = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.assioma,
-            "Assioma Pedals",
-            || squish_error(Assioma::new(central.clone())),
-        );
         */
+
         // TODO: Can't use ?
         let mut o_assioma =
            if devices.assioma {
