@@ -3,9 +3,10 @@ use std::{
     mem,
     sync::{Arc, Mutex},
     thread,
-    thread::JoinHandle,
     time::{Duration, Instant},
 };
+use std::future::Future;
+use tokio::task::JoinHandle;
 
 #[derive(Clone)]
 pub struct Workout {
@@ -25,13 +26,13 @@ pub struct WorkoutHandle {
 }
 
 impl WorkoutHandle {
-    pub fn exit(&mut self) {
+    pub async fn exit(&mut self) {
         {
             let mut state = self.state.lock().unwrap();
             state.running = false;
         }
         if let Some(jh) = mem::replace(&mut self.join_handle, None) {
-            jh.join().unwrap();
+            jh.await.unwrap();
         }
     }
 }
@@ -55,7 +56,7 @@ impl Workout {
 
     // This also eventually self-corrects any drift, because we always target the
     // correct total time for our changes.
-    pub fn run<F: Fn(u16) + Send + 'static>(self, start: Instant, set_power: F) -> WorkoutHandle {
+    pub fn run<Fut: Future<Output = ()> + Send, F: Fn(u16) -> Fut + 'static + Send>(self, start: Instant, set_power: F) -> WorkoutHandle {
         // TODO: There must be a more elegant way to do this
         let state = Arc::new(Mutex::new(WorkoutState {
             running: true,
@@ -64,7 +65,7 @@ impl Workout {
         let state_for_thread = state.clone();
         let Workout { ct, tail } = self;
         let tail_iter = tail.map(|x| (Duration::from_secs(1000000), x)).into_iter();
-        let join_handle = Some(thread::spawn(move || {
+        let join_handle = Some(tokio::task::spawn(async move {
             let mut d = Duration::from_secs(0);
             let mut last_offset: i16 = 0;
 
@@ -74,26 +75,39 @@ impl Workout {
                 let e = start.elapsed();
                 // If duration is negative, we continue on.
                 if let Some(_) = d.checked_sub(e) {
-                    set_power(((power as i16) + last_offset) as u16);
+                    let set_power_fut = set_power(((power as i16) + last_offset) as u16);
+                    set_power_fut.await;
 
                     // We loop and check every 50ms if we should move to the
                     // next power or if the workout is teriminated.
                     let terminate = loop {
                         thread::sleep(Duration::from_millis(50));
-                        {
-                            let state = state_for_thread.lock().unwrap();
-                            if !state.running {
-                                break true;
-                            }
-
-                            // Check to see if the offset has changed, if so,
-                            // record the new offset and immediately update the
-                            // power.
-                            if state.offset != last_offset {
-                                last_offset = state.offset;
-                                set_power(((power as i16) + last_offset) as u16);
-                            }
+                        // We immediately drop the guard because the guard for
+                        // a typical mutex cannot be used across awaits.  While
+                        // we might consider using an async Mutex, in this
+                        // case, this is the one and only caller that actually
+                        // does a side-effect, and all other users simply set
+                        // the data.  So there should be no risk that
+                        // side-effects occur out of order.  Other than that,
+                        // just data is involved, which makes a traditional
+                        // mutex better, if not more appropriate.
+                        let state = {
+                            let guard = state_for_thread.lock().unwrap();
+                            guard.clone()
+                        };
+                        if !state.running {
+                            break true;
                         }
+
+                        // Check to see if the offset has changed, if so,
+                        // record the new offset and immediately update the
+                        // power.
+                        if state.offset != last_offset {
+                            last_offset = state.offset;
+                            let set_power_fut = set_power(((power as i16) + last_offset) as u16);
+                            set_power_fut.await;
+                        }
+
                         if let None = d.checked_sub(start.elapsed()) {
                             break false;
                         }

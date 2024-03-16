@@ -29,7 +29,7 @@ use ble::{
 use btleplug::api::{Central, Manager as _, ScanFilter, Peripheral};
 use btleplug::platform::Manager;
 use btleplug::Error::DeviceNotFound;
-use peripherals::{hrm, assioma};
+use peripherals::{kickr, hrm, assioma};
 // use peripherals::{
 //     assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
 // };
@@ -325,12 +325,13 @@ pub async fn main() {
                None
            };
 
-        /*
+        // TODO: Can't use ?
         let mut o_kickr =
-            user_connect_or_skip(&mut display, &mut buttons, devices.kickr, "Kickr", || {
-                squish_error(Kickr::new(central.clone()))
-            });
-        */
+           if devices.kickr {
+               Some(or_crash_with_msg(&mut display, kickr::connect(&central).await.unwrap(), "Kickr was requested but not found."))
+           } else {
+               None
+           };
 
         // TODO: Can't use ?
         let mut o_assioma =
@@ -435,56 +436,57 @@ pub async fn main() {
 
         let use_assioma = devices.assioma;
 
-        /*
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
-        for kickr in &mut o_kickr {
+        for (kickr, _) in &mut o_kickr {
             let db_kickr = db.clone();
             let display_mutex_kickr = display_mutex.clone();
             let mut o_last_power_reading: Option<CyclingPowerMeasurement> = None;
             let mut acc_torque = 0.0;
-            kickr.on_notification(Box::new(move |n| {
-                if n.uuid == kickr::MEASURE_UUID {
-                    let mut display = display_mutex_kickr.lock().unwrap();
-                    let power_reading = parse_cycling_power_measurement(&n.value);
-                    let o_new_acc_torque = o_last_power_reading
-                        .as_ref()
-                        .and_then(|x| x.new_accumulated_torque(&power_reading));
-                    if let Some(new_acc_torque) = o_new_acc_torque {
-                        acc_torque = acc_torque + new_acc_torque;
-                        //TODO: The display should be able to accept a "wheel" and "crank" external
-                        //energy field separately.  Right now for testing we just disable the
-                        //KICKR's output to the display.
-                        if !use_assioma {
-                            display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+            let mut notifications = kickr.notifications().await.unwrap();
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    if n.uuid == kickr::MEASURE_UUID {
+                        let mut display = display_mutex_kickr.lock().unwrap();
+                        let power_reading = parse_cycling_power_measurement(&n.value);
+                        let o_new_acc_torque = o_last_power_reading
+                            .as_ref()
+                            .and_then(|x| x.new_accumulated_torque(&power_reading));
+                        if let Some(new_acc_torque) = o_new_acc_torque {
+                            acc_torque = acc_torque + new_acc_torque;
+                            //TODO: The display should be able to accept a "wheel" and "crank" external
+                            //energy field separately.  Right now for testing we just disable the
+                            //KICKR's output to the display.
+                            if !use_assioma {
+                                display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                            }
                         }
+                        //TODO: The display should be able to accept a "wheel" and "crank" power field
+                        //separately.  Right now for testing we just disable the KICKR's output to the
+                        //display.
+                        if !use_assioma {
+                            display.update_power(Some(power_reading.instantaneous_power));
+                        }
+                        o_last_power_reading = Some(power_reading);
+                        let elapsed = start.elapsed();
+                        //TODO: Not exactly sure how to handle having _both_ power captures for when it
+                        //comes to generating fit files.
+                        if !use_assioma {
+                            db_kickr
+                                .insert(
+                                    session_key,
+                                    elapsed,
+                                    telemetry_db::Notification::Ble((n.uuid, n.value)),
+                                )
+                                .unwrap();
+                        }
+                    } else {
+                        println!("Non-power notification from kickr: {:?}", n);
                     }
-                    //TODO: The display should be able to accept a "wheel" and "crank" power field
-                    //separately.  Right now for testing we just disable the KICKR's output to the
-                    //display.
-                    if !use_assioma {
-                        display.update_power(Some(power_reading.instantaneous_power));
-                    }
-                    o_last_power_reading = Some(power_reading);
-                    let elapsed = start.elapsed();
-                    //TODO: Not exactly sure how to handle having _both_ power captures for when it
-                    //comes to generating fit files.
-                    if !use_assioma {
-                        db_kickr
-                            .insert(
-                                session_key,
-                                elapsed,
-                                telemetry_db::Notification::Ble((n.uuid, n.value)),
-                            )
-                            .unwrap();
-                    }
-                } else {
-                    println!("Non-power notification from kickr: {:?}", n);
                 }
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
         }
-        */
 
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
@@ -561,6 +563,7 @@ pub async fn main() {
             }));
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
         }
+        */
 
         // run our workout
         // Our workout will drop the closure after the workout ends (last
@@ -570,8 +573,6 @@ pub async fn main() {
         // TODO: Maybe all workouts should have an explicit end, rather than a
         // tail?  That would make this more intuitive.  Then at the end of the
         // workout, the program exits (and systemd restarts it).
-        let o_kickr = Arc::new(o_kickr);
-        */
 
         // TODO: It's dumb that were managing these two separate mutexes (power
         // target and display).  The target should just be private state of the
@@ -582,18 +583,9 @@ pub async fn main() {
 
         let power_target_mutex_workout = power_target_mutex.clone();
 
-        /*
         let o_kickr_for_workout = o_kickr.clone();
-        */
         let display_mutex_workout = display_mutex.clone();
         let mut workout_handle = workout.run(Instant::now(), move |p| {
-            /*
-            // If there's a connected Kickr, set its ERG mode power
-            for kickr in o_kickr_for_workout.iter() {
-                kickr.set_power(p).unwrap();
-            }
-            */
-
             // Update our power target used by the display, and update the
             // display immediately
             {
@@ -601,6 +593,16 @@ pub async fn main() {
                 *power_target = p;
                 let mut display = display_mutex_workout.lock().unwrap();
                 display.set_page(display::Page::PowerTrack(p as i16));
+            }
+
+            // TODO: got to be a better way than this!
+            let o_kickr_for_workout = o_kickr_for_workout.clone();
+            async move {
+                // If there's a connected Kickr, set its ERG mode power
+                // FIXME: If we do this, we actually block until next iteration
+                for (kickr, target_power) in o_kickr_for_workout.iter() {
+                    kickr::set_power(kickr, target_power, p).await.unwrap();
+                }
             }
         });
 
@@ -675,8 +677,9 @@ pub async fn main() {
             thread::sleep(Duration::from_millis(100));
         });
 
+        // TODO: Idealy, the end of a workout ends the program
         render_handle.join().unwrap();
-        workout_handle.exit();
+        workout_handle.exit().await;
         lock_and_show(&display_mutex, &"Goodbye");
     }
 }
