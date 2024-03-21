@@ -81,7 +81,10 @@ impl Workout {
                     // We loop and check every 50ms if we should move to the
                     // next power or if the workout is teriminated.
                     let terminate = loop {
-                        thread::sleep(Duration::from_millis(50));
+                        // TODO: It likely makes more sense to truly commit to
+                        // async semantics here, where we poll for power
+                        // changes.
+                        tokio::time::sleep(Duration::from_millis(50)).await;
                         // We immediately drop the guard because the guard for
                         // a typical mutex cannot be used across awaits.  While
                         // we might consider using an async Mutex, in this

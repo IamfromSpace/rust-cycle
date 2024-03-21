@@ -167,13 +167,6 @@ async fn write_power(
         // Kickr with a Control UUID is an invariant
         .unwrap();
 
-    // TODO: Half the time (when using WithoutResponse) it seems this write
-    // "gets stuck," and blocks anything else from happening.  If we use
-    // WithResponse it blocks everything.
-    // Monitoring dbus (via `sudo busctl monitor "org.bluez"`) makes it look like
-    // everything is working.  We can see all the power events coming secondly,
-    // and we can see both the request, response, and even the trainer char
-    // send a notification of the change.
     peripheral.write(
         &power_control_char,
         &[0x42, (power & 0xff) as u8, ((power >> 8) & 0xff) as u8],

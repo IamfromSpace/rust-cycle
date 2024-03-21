@@ -599,7 +599,6 @@ pub async fn main() {
             let o_kickr_for_workout = o_kickr_for_workout.clone();
             async move {
                 // If there's a connected Kickr, set its ERG mode power
-                // FIXME: If we do this, we actually block until next iteration
                 for (kickr, target_power) in o_kickr_for_workout.iter() {
                     kickr::set_power(kickr, target_power, p).await.unwrap();
                 }
