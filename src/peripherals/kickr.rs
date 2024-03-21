@@ -170,7 +170,7 @@ async fn write_power(
     // TODO: Half the time (when using WithoutResponse) it seems this write
     // "gets stuck," and blocks anything else from happening.  If we use
     // WithResponse it blocks everything.
-    // Monitoring dbus (via `sudo busctl monitor`) makes it look like
+    // Monitoring dbus (via `sudo busctl monitor "org.bluez"`) makes it look like
     // everything is working.  We can see all the power events coming secondly,
     // and we can see both the request, response, and even the trainer char
     // send a notification of the change.
