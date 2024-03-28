@@ -29,7 +29,7 @@ use ble::{
 use btleplug::api::{Central, Manager as _, ScanFilter, Peripheral};
 use btleplug::platform::Manager;
 use btleplug::Error::DeviceNotFound;
-use peripherals::{kickr, hrm, assioma};
+use peripherals::{kickr, hrm, assioma, speed};
 // use peripherals::{
 //     assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
 // };
@@ -292,15 +292,28 @@ pub async fn main() {
         );
         display.render_msg("Connecting to Devices.");
 
-        /*
-        let mut o_speed = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.speed,
-            "Speed Measure",
-            || squish_error(Speed::new(central.clone())),
-        );
-        */
+        // TODO: Can't use ?
+        let mut o_speed =
+           if devices.speed {
+               match squish_error(speed::connect(&central).await) {
+                   Ok(speed) => Some(speed),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &mut buttons,
+                           "Speed connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "Speed connect error.")
+                           }
+                       }
+                   }
+               }
+           } else {
+               None
+           };
 
         // TODO: Can't use ?
         let mut o_hrm =
@@ -378,7 +391,6 @@ pub async fn main() {
             lock_and_show(&display_mutex, &format!("GPS Ready"));
         }
 
-        /*
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
         for speed_measure in &mut o_speed {
@@ -386,29 +398,32 @@ pub async fn main() {
             let mut wheel_count = 0;
             let db_speed_measure = db.clone();
             let display_mutex_speed = display_mutex.clone();
-            speed_measure.on_notification(Box::new(move |n| {
-                let elapsed = start.elapsed();
-                let csc_measure = parse_csc_measurement(&n.value);
-                let r =
-                    checked_wheel_rpm_and_new_count(o_last_speed_measure.as_ref(), &csc_measure);
-                if let Some((wheel_rpm, new_wheel_count)) = r {
-                    wheel_count = wheel_count + new_wheel_count;
-                    let mut display = display_mutex_speed.lock().unwrap();
-                    display.update_speed(Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0));
-                    display.update_distance(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+            // TODO: Cannot use ? in async block that returns ()
+            let mut notifications = speed_measure.notifications().await.unwrap();
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let elapsed = start.elapsed();
+                    let csc_measure = parse_csc_measurement(&n.value);
+                    let r =
+                        checked_wheel_rpm_and_new_count(o_last_speed_measure.as_ref(), &csc_measure);
+                    if let Some((wheel_rpm, new_wheel_count)) = r {
+                        wheel_count = wheel_count + new_wheel_count;
+                        let mut display = display_mutex_speed.lock().unwrap();
+                        display.update_speed(Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0));
+                        display.update_distance(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                    }
+                    o_last_speed_measure = Some(csc_measure);
+                    db_speed_measure
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 }
-                o_last_speed_measure = Some(csc_measure);
-                db_speed_measure
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Speed Monitor");
         }
-        */
 
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
