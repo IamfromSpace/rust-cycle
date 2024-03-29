@@ -29,10 +29,7 @@ use ble::{
 use btleplug::api::{Central, Manager as _, ScanFilter, Peripheral};
 use btleplug::platform::Manager;
 use btleplug::Error::DeviceNotFound;
-use peripherals::{kickr, hrm, assioma, speed};
-// use peripherals::{
-//     assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
-// };
+use peripherals::{kickr, hrm, assioma, speed, cadence};
 use std::collections::BTreeSet;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -354,15 +351,28 @@ pub async fn main() {
                None
            };
 
-        /*
-        let mut o_cadence = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.cadence,
-            "Cadence Measure",
-            || squish_error(Cadence::new(central.clone())),
-        );
-        */
+        // TODO: Can't use ?
+        let mut o_cadence =
+           if devices.cadence {
+               match squish_error(cadence::connect(&central).await) {
+                   Ok(cadence) => Some(cadence),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &mut buttons,
+                           "Cadence connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "Cadence connect error.")
+                           }
+                       }
+                   }
+               }
+           } else {
+               None
+           };
 
         // We now need a mutex, so we can share the display out to multiple
         // peripherals
@@ -548,7 +558,6 @@ pub async fn main() {
             lock_and_show(&display_mutex, &"Setup Complete for Assioma Pedals!");
         }
 
-        /*
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
         for cadence_measure in &mut o_cadence {
@@ -556,29 +565,31 @@ pub async fn main() {
             let mut crank_count = 0;
             let db_cadence_measure = db.clone();
             let display_mutex_cadence = display_mutex.clone();
-            cadence_measure.on_notification(Box::new(move |n| {
-                let elapsed = start.elapsed();
-                let csc_measure = parse_csc_measurement(&n.value);
-                let r =
-                    checked_crank_rpm_and_new_count(o_last_cadence_measure.as_ref(), &csc_measure);
-                if let Some((rpm, new_crank_count)) = r {
-                    crank_count = crank_count + new_crank_count;
-                    let mut display = display_mutex_cadence.lock().unwrap();
-                    display.update_cadence(Some(rpm as u8));
-                    display.update_crank_count(crank_count);
+            let mut notifications = cadence_measure.notifications().await.unwrap();
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let elapsed = start.elapsed();
+                    let csc_measure = parse_csc_measurement(&n.value);
+                    let r =
+                        checked_crank_rpm_and_new_count(o_last_cadence_measure.as_ref(), &csc_measure);
+                    if let Some((rpm, new_crank_count)) = r {
+                        crank_count = crank_count + new_crank_count;
+                        let mut display = display_mutex_cadence.lock().unwrap();
+                        display.update_cadence(Some(rpm as u8));
+                        display.update_crank_count(crank_count);
+                    }
+                    o_last_cadence_measure = Some(csc_measure);
+                    db_cadence_measure
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 }
-                o_last_cadence_measure = Some(csc_measure);
-                db_cadence_measure
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
         }
-        */
 
         // run our workout
         // Our workout will drop the closure after the workout ends (last
