@@ -1,11 +1,8 @@
-use btleplug::api::{Central, CentralEvent, Peripheral, ValueNotification, bleuuid::uuid_from_u16};
+use btleplug::api::{Central, CentralEvent, Peripheral, bleuuid::uuid_from_u16};
 use uuid::Uuid;
 use btleplug::Result;
-use std::{marker::PhantomData, time::Duration};
-use std::pin::Pin;
-use std::future::Future;
+use std::time::Duration;
 use futures::stream::StreamExt;
-use futures_core::stream::Stream;
 
 pub const MEASURE_UUID: Uuid = uuid_from_u16(0x2A37);
 
