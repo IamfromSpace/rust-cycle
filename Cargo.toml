@@ -13,7 +13,6 @@ rppal = "0.11"
 chrono = "0.4"
 nmea0183 = { git = "https://github.com/IamfromSpace/nmea0183.git", rev = "66e205d97438bf07", features = ["serde"] }
 serde = "1.0"
-git-version = "0.3"
 embedded-graphics = "0.6"
 embedded-graphics-simulator = { version = "0.2", optional = true }
 tiny_http = "0.6"

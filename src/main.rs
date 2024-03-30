@@ -71,11 +71,13 @@ pub fn main() {
 
     let args: BTreeSet<String> = env::args().collect();
     let is_version_mode = args.contains("-v") || args.contains("--version");
-    // TODO: There's probably an alternate way to do this with nix
-    let version = "TODO"; // git_version::git_version!();
+    let version =
+        match (core::option_env!("NIX_STORE"), core::option_env!("out")) {
+            (Some(store), Some(out)) => out.strip_prefix(&[store, "/"].join("")).unwrap(),
+            _ => "unknown",
+        };
 
     if is_version_mode {
-        // TODO: It might be handy to put this on the display
         println!("{}", version);
     } else {
         let db = telemetry_db::open_default().unwrap();
