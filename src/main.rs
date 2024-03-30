@@ -72,7 +72,7 @@ struct SelectedDevices {
 }
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> btleplug::Result<()> {
     env_logger::init();
 
     let args: BTreeSet<String> = env::args().collect();
@@ -160,7 +160,7 @@ pub async fn main() {
                     .arg("now")
                     .output()
                     .unwrap();
-                return;
+                return Ok(());
             }
             NotExit(x) => x,
         };
@@ -278,18 +278,11 @@ pub async fn main() {
         display.render_msg("Setting up Bluetooth");
         let central = or_crash_with_msg(
             &mut display,
-            setup_ble_and_discover_devices()
-                .await
-                // Result to Option
-                // TODO: Loses original error
-                .ok()
-                //aka flatten: Option<Option<T>> -> Option<T>
-                .and_then(|x| x),
+            setup_ble_and_discover_devices().await?,
             "Couldn't setup bluetooth!",
         );
         display.render_msg("Connecting to Devices.");
 
-        // TODO: Can't use ?
         let mut o_speed =
            if devices.speed {
                match squish_error(speed::connect(&central).await) {
@@ -312,7 +305,6 @@ pub async fn main() {
                None
            };
 
-        // TODO: Can't use ?
         let mut o_hrm =
            if devices.hr {
                match squish_error(hrm::connect(&central).await) {
@@ -335,23 +327,22 @@ pub async fn main() {
                None
            };
 
-        // TODO: Can't use ?
         let mut o_kickr =
            if devices.kickr {
-               Some(or_crash_with_msg(&mut display, kickr::connect(&central).await.unwrap(), "Kickr was requested but not found."))
+               let p = kickr::connect(&central).await?;
+               Some(or_crash_with_msg(&mut display, p, "Kickr was requested but not found."))
            } else {
                None
            };
 
-        // TODO: Can't use ?
         let mut o_assioma =
            if devices.assioma {
-               Some(or_crash_with_msg(&mut display, assioma::connect(&central).await.unwrap(), "Assioma was requested but not found."))
+               let p = assioma::connect(&central).await?;
+               Some(or_crash_with_msg(&mut display, p, "Assioma was requested but not found."))
            } else {
                None
            };
 
-        // TODO: Can't use ?
         let mut o_cadence =
            if devices.cadence {
                match squish_error(cadence::connect(&central).await) {
@@ -408,8 +399,7 @@ pub async fn main() {
             let mut wheel_count = 0;
             let db_speed_measure = db.clone();
             let display_mutex_speed = display_mutex.clone();
-            // TODO: Cannot use ? in async block that returns ()
-            let mut notifications = speed_measure.notifications().await.unwrap();
+            let mut notifications = speed_measure.notifications().await?;
             tokio::spawn(async move {
                 while let Some(n) = notifications.next().await {
                     let elapsed = start.elapsed();
@@ -440,8 +430,7 @@ pub async fn main() {
         for hrm in &mut o_hrm {
             let db_hrm = db.clone();
             let display_mutex_hrm = display_mutex.clone();
-            // TODO: Cannot use ? in async block that returns ()
-            let mut notifications = hrm.notifications().await.unwrap();
+            let mut notifications = hrm.notifications().await?;
             tokio::spawn(async move {
                 while let Some(n) = notifications.next().await {
                     let mut display = display_mutex_hrm.lock().unwrap();
@@ -468,7 +457,7 @@ pub async fn main() {
             let display_mutex_kickr = display_mutex.clone();
             let mut o_last_power_reading: Option<CyclingPowerMeasurement> = None;
             let mut acc_torque = 0.0;
-            let mut notifications = kickr.notifications().await.unwrap();
+            let mut notifications = kickr.notifications().await?;
             tokio::spawn(async move {
                 while let Some(n) = notifications.next().await {
                     if n.uuid == kickr::MEASURE_UUID {
@@ -521,8 +510,7 @@ pub async fn main() {
             let mut acc_torque = 0.0;
             let db_power_measure = db.clone();
             let display_mutex_assioma = display_mutex.clone();
-            // TODO: Cannot use ? in async block that returns ()
-            let mut notifications = assioma.notifications().await.unwrap();
+            let mut notifications = assioma.notifications().await?;
             tokio::spawn(async move {
                 while let Some(n) = notifications.next().await {
                     let elapsed = start.elapsed();
@@ -565,7 +553,7 @@ pub async fn main() {
             let mut crank_count = 0;
             let db_cadence_measure = db.clone();
             let display_mutex_cadence = display_mutex.clone();
-            let mut notifications = cadence_measure.notifications().await.unwrap();
+            let mut notifications = cadence_measure.notifications().await?;
             tokio::spawn(async move {
                 while let Some(n) = notifications.next().await {
                     let elapsed = start.elapsed();
@@ -707,6 +695,8 @@ pub async fn main() {
         workout_handle.exit().await;
         lock_and_show(&display_mutex, &"Goodbye");
     }
+
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -810,7 +800,7 @@ async fn setup_ble_and_discover_devices() -> btleplug::Result<Option<btleplug::p
     let manager = Manager::new().await?;
 
     println!("Getting Adapters...");
-    let adapters = manager.adapters().await.unwrap();
+    let adapters = manager.adapters().await?;
 
     match adapters.into_iter().next() {
         Some(central) => {
