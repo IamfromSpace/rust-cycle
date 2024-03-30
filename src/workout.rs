@@ -2,7 +2,6 @@ use crate::cycle_tree::CycleTree;
 use std::{
     mem,
     sync::{Arc, Mutex},
-    thread,
     time::{Duration, Instant},
 };
 use std::future::Future;
