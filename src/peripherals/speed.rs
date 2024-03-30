@@ -1,11 +1,8 @@
 use crate::ble::csc_measurement::MEASURE_UUID;
-use btleplug::api::{Central, CentralEvent, Peripheral, ValueNotification};
+use btleplug::api::{Central, CentralEvent, Peripheral};
 use btleplug::Result;
-use std::{marker::PhantomData, thread, time::Duration};
-use std::pin::Pin;
-use std::future::Future;
+use std::time::Duration;
 use futures::stream::StreamExt;
-use futures_core::stream::Stream;
 
 pub async fn connect<P: Peripheral, C: Central<Peripheral=P> + 'static>(central: &C) -> Result<Option<P>> {
     println!("Getting peripherals");
