@@ -68,7 +68,7 @@ impl Gps {
 impl Drop for Gps {
     fn drop(&mut self) {
         // Drop the Arc immediately so the owner count is 1
-        mem::replace(&mut self.running, None);
+        let _ = mem::replace(&mut self.running, None);
         if let Some(jh) = mem::replace(&mut self.join_handle, None) {
             jh.join().unwrap();
         }
