@@ -4,9 +4,6 @@ mod cycle_tree;
 mod display;
 mod fit;
 mod gps;
-mod inky_phat;
-#[cfg(feature = "simulator")]
-mod inky_phat_simulator;
 mod memory_lcd;
 #[cfg(feature = "simulator")]
 mod memory_lcd_simulator;
