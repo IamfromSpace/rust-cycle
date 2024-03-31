@@ -26,17 +26,16 @@ use ble::{
     cycling_power_measurement::{parse_cycling_power_measurement, CyclingPowerMeasurement},
     heart_rate_measurement::parse_hrm,
 };
-use btleplug::api::Central;
-use btleplug::bluez::manager::Manager;
+use btleplug::api::{Central, Manager as _, ScanFilter, Peripheral};
+use btleplug::platform::Manager;
 use btleplug::Error::DeviceNotFound;
-use peripherals::{
-    assioma::Assioma, cadence::Cadence, hrm, hrm::Hrm, kickr, kickr::Kickr, speed::Speed,
-};
+use peripherals::{kickr, hrm, assioma, speed, cadence};
 use std::collections::BTreeSet;
 use std::env;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use futures::stream::StreamExt;
 use workout::{create_big_start_interval, ramp_test, single_value};
 
 // TODO:  Allow calibration
@@ -56,6 +55,12 @@ enum SetupNextStep {
     Crash,
 }
 
+#[derive(Clone, Debug)]
+enum IgnorableError {
+    Ignore,
+    Exit,
+}
+
 #[derive(Clone)]
 struct SelectedDevices {
     assioma: bool,
@@ -66,7 +71,8 @@ struct SelectedDevices {
     speed: bool,
 }
 
-pub fn main() {
+#[tokio::main]
+pub async fn main() -> btleplug::Result<()> {
     env_logger::init();
 
     let args: BTreeSet<String> = env::args().collect();
@@ -96,6 +102,7 @@ pub fn main() {
         // TODO: Select Enums
         use OrExit::{Exit, NotExit};
         use SelectionTreeValue::{Leaf, Node};
+        #[cfg(not(feature = "simulator"))]
         let devices = selection_tree(
             &mut display,
             &mut buttons,
@@ -141,6 +148,7 @@ pub fn main() {
             &"Choose profile",
         );
 
+        #[cfg(not(feature = "simulator"))]
         let devices = match devices {
             Exit => {
                 display.render_msg("Goodbye");
@@ -154,11 +162,12 @@ pub fn main() {
                     .arg("now")
                     .output()
                     .unwrap();
-                return;
+                return Ok(());
             }
             NotExit(x) => x,
         };
 
+        #[cfg(not(feature = "simulator"))]
         let workout = selection_tree(
             &mut display,
             &mut buttons,
@@ -228,6 +237,18 @@ pub fn main() {
             &"Choose workout",
         );
 
+        #[cfg(feature = "simulator")]
+        let devices = SelectedDevices {
+                        assioma: true,
+                        cadence: false,
+                        gps: false,
+                        hr: true,
+                        kickr: false,
+                        speed: false,
+                    };
+        #[cfg(feature = "simulator")]
+        let workout = single_value(100);
+
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
         let start = Instant::now();
@@ -259,52 +280,92 @@ pub fn main() {
         display.render_msg("Setting up Bluetooth");
         let central = or_crash_with_msg(
             &mut display,
-            setup_ble_and_discover_devices()
-                // Result to Option
-                // TODO: Loses original error
-                .ok()
-                //aka flatten: Option<Option<T>> -> Option<T>
-                .and_then(|x| x),
+            setup_ble_and_discover_devices().await?,
             "Couldn't setup bluetooth!",
         );
         display.render_msg("Connecting to Devices.");
 
-        let mut o_speed = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.speed,
-            "Speed Measure",
-            || squish_error(Speed::new(central.clone())),
-        );
+        let mut o_speed =
+           if devices.speed {
+               match squish_error(speed::connect(&central).await) {
+                   Ok(speed) => Some(speed),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &mut buttons,
+                           "Speed connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "Speed connect error.")
+                           }
+                       }
+                   }
+               }
+           } else {
+               None
+           };
 
-        let mut o_hrm = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.hr,
-            "Heart Rate Monitor",
-            || squish_error(Hrm::new(central.clone())),
-        );
+        let mut o_hrm =
+           if devices.hr {
+               match squish_error(hrm::connect(&central).await) {
+                   Ok(hrm) => Some(hrm),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &mut buttons,
+                           "HR Monitor connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "HR Monitor connect error.")
+                           }
+                       }
+                   }
+               }
+           } else {
+               None
+           };
 
         let mut o_kickr =
-            user_connect_or_skip(&mut display, &mut buttons, devices.kickr, "Kickr", || {
-                squish_error(Kickr::new(central.clone()))
-            });
+           if devices.kickr {
+               let p = kickr::connect(&central).await?;
+               Some(or_crash_with_msg(&mut display, p, "Kickr was requested but not found."))
+           } else {
+               None
+           };
 
-        let mut o_assioma = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.assioma,
-            "Assioma Pedals",
-            || squish_error(Assioma::new(central.clone())),
-        );
+        let mut o_assioma =
+           if devices.assioma {
+               let p = assioma::connect(&central).await?;
+               Some(or_crash_with_msg(&mut display, p, "Assioma was requested but not found."))
+           } else {
+               None
+           };
 
-        let mut o_cadence = user_connect_or_skip(
-            &mut display,
-            &mut buttons,
-            devices.cadence,
-            "Cadence Measure",
-            || squish_error(Cadence::new(central.clone())),
-        );
+        let mut o_cadence =
+           if devices.cadence {
+               match squish_error(cadence::connect(&central).await) {
+                   Ok(cadence) => Some(cadence),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &mut buttons,
+                           "Cadence connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "Cadence connect error.")
+                           }
+                       }
+                   }
+               }
+           } else {
+               None
+           };
 
         // We now need a mutex, so we can share the display out to multiple
         // peripherals
@@ -340,26 +401,29 @@ pub fn main() {
             let mut wheel_count = 0;
             let db_speed_measure = db.clone();
             let display_mutex_speed = display_mutex.clone();
-            speed_measure.on_notification(Box::new(move |n| {
-                let elapsed = start.elapsed();
-                let csc_measure = parse_csc_measurement(&n.value);
-                let r =
-                    checked_wheel_rpm_and_new_count(o_last_speed_measure.as_ref(), &csc_measure);
-                if let Some((wheel_rpm, new_wheel_count)) = r {
-                    wheel_count = wheel_count + new_wheel_count;
-                    let mut display = display_mutex_speed.lock().unwrap();
-                    display.update_speed(Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0));
-                    display.update_distance(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+            let mut notifications = speed_measure.notifications().await?;
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let elapsed = start.elapsed();
+                    let csc_measure = parse_csc_measurement(&n.value);
+                    let r =
+                        checked_wheel_rpm_and_new_count(o_last_speed_measure.as_ref(), &csc_measure);
+                    if let Some((wheel_rpm, new_wheel_count)) = r {
+                        wheel_count = wheel_count + new_wheel_count;
+                        let mut display = display_mutex_speed.lock().unwrap();
+                        display.update_speed(Some(wheel_rpm as f32 * WHEEL_CIRCUMFERENCE / 60.0));
+                        display.update_distance(wheel_count as f64 * WHEEL_CIRCUMFERENCE as f64);
+                    }
+                    o_last_speed_measure = Some(csc_measure);
+                    db_speed_measure
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 }
-                o_last_speed_measure = Some(csc_measure);
-                db_speed_measure
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Speed Monitor");
         }
 
@@ -368,18 +432,21 @@ pub fn main() {
         for hrm in &mut o_hrm {
             let db_hrm = db.clone();
             let display_mutex_hrm = display_mutex.clone();
-            hrm.on_notification(Box::new(move |n| {
-                let mut display = display_mutex_hrm.lock().unwrap();
-                display.update_heart_rate(Some(parse_hrm(&n.value).bpm as u8));
-                let elapsed = start.elapsed();
-                db_hrm
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            let mut notifications = hrm.notifications().await?;
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let mut display = display_mutex_hrm.lock().unwrap();
+                    display.update_heart_rate(Some(parse_hrm(&n.value).bpm as u8));
+                    let elapsed = start.elapsed();
+                    db_hrm
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
+                };
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Heart Rate Monitor");
         }
 
@@ -387,50 +454,53 @@ pub fn main() {
 
         // Need to make sure we don't consume the optional, or it will be
         // dropped prematurely
-        for kickr in &mut o_kickr {
+        for (kickr, _) in &mut o_kickr {
             let db_kickr = db.clone();
             let display_mutex_kickr = display_mutex.clone();
             let mut o_last_power_reading: Option<CyclingPowerMeasurement> = None;
             let mut acc_torque = 0.0;
-            kickr.on_notification(Box::new(move |n| {
-                if n.uuid == kickr::MEASURE_UUID {
-                    let mut display = display_mutex_kickr.lock().unwrap();
-                    let power_reading = parse_cycling_power_measurement(&n.value);
-                    let o_new_acc_torque = o_last_power_reading
-                        .as_ref()
-                        .and_then(|x| x.new_accumulated_torque(&power_reading));
-                    if let Some(new_acc_torque) = o_new_acc_torque {
-                        acc_torque = acc_torque + new_acc_torque;
-                        //TODO: The display should be able to accept a "wheel" and "crank" external
-                        //energy field separately.  Right now for testing we just disable the
-                        //KICKR's output to the display.
-                        if !use_assioma {
-                            display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+            let mut notifications = kickr.notifications().await?;
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    if n.uuid == kickr::MEASURE_UUID {
+                        let mut display = display_mutex_kickr.lock().unwrap();
+                        let power_reading = parse_cycling_power_measurement(&n.value);
+                        let o_new_acc_torque = o_last_power_reading
+                            .as_ref()
+                            .and_then(|x| x.new_accumulated_torque(&power_reading));
+                        if let Some(new_acc_torque) = o_new_acc_torque {
+                            acc_torque = acc_torque + new_acc_torque;
+                            //TODO: The display should be able to accept a "wheel" and "crank" external
+                            //energy field separately.  Right now for testing we just disable the
+                            //KICKR's output to the display.
+                            if !use_assioma {
+                                display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                            }
                         }
+                        //TODO: The display should be able to accept a "wheel" and "crank" power field
+                        //separately.  Right now for testing we just disable the KICKR's output to the
+                        //display.
+                        if !use_assioma {
+                            display.update_power(Some(power_reading.instantaneous_power));
+                        }
+                        o_last_power_reading = Some(power_reading);
+                        let elapsed = start.elapsed();
+                        //TODO: Not exactly sure how to handle having _both_ power captures for when it
+                        //comes to generating fit files.
+                        if !use_assioma {
+                            db_kickr
+                                .insert(
+                                    session_key,
+                                    elapsed,
+                                    telemetry_db::Notification::Ble((n.uuid, n.value)),
+                                )
+                                .unwrap();
+                        }
+                    } else {
+                        println!("Non-power notification from kickr: {:?}", n);
                     }
-                    //TODO: The display should be able to accept a "wheel" and "crank" power field
-                    //separately.  Right now for testing we just disable the KICKR's output to the
-                    //display.
-                    if !use_assioma {
-                        display.update_power(Some(power_reading.instantaneous_power));
-                    }
-                    o_last_power_reading = Some(power_reading);
-                    let elapsed = start.elapsed();
-                    //TODO: Not exactly sure how to handle having _both_ power captures for when it
-                    //comes to generating fit files.
-                    if !use_assioma {
-                        db_kickr
-                            .insert(
-                                session_key,
-                                elapsed,
-                                telemetry_db::Notification::Ble((n.uuid, n.value)),
-                            )
-                            .unwrap();
-                    }
-                } else {
-                    println!("Non-power notification from kickr: {:?}", n);
                 }
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Kickr");
         }
 
@@ -442,36 +512,39 @@ pub fn main() {
             let mut acc_torque = 0.0;
             let db_power_measure = db.clone();
             let display_mutex_assioma = display_mutex.clone();
-            assioma.on_notification(Box::new(move |n| {
-                let elapsed = start.elapsed();
-                let power_measure = parse_cycling_power_measurement(&n.value);
-                let r = cycling_power_measurement::checked_crank_rpm_and_new_count(
-                    o_last_power_measure.as_ref(),
-                    &power_measure,
-                );
-                let mut display = display_mutex_assioma.lock().unwrap();
-                if let Some((rpm, new_crank_count)) = r {
-                    crank_count = crank_count + new_crank_count;
-                    display.update_cadence(Some(rpm as u8));
-                    display.update_crank_count(crank_count);
+            let mut notifications = assioma.notifications().await?;
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let elapsed = start.elapsed();
+                    let power_measure = parse_cycling_power_measurement(&n.value);
+                    let r = cycling_power_measurement::checked_crank_rpm_and_new_count(
+                        o_last_power_measure.as_ref(),
+                        &power_measure,
+                    );
+                    let mut display = display_mutex_assioma.lock().unwrap();
+                    if let Some((rpm, new_crank_count)) = r {
+                        crank_count = crank_count + new_crank_count;
+                        display.update_cadence(Some(rpm as u8));
+                        display.update_crank_count(crank_count);
+                    }
+                    let o_new_acc_torque = o_last_power_measure
+                        .as_ref()
+                        .and_then(|x| x.new_accumulated_torque(&power_measure));
+                    if let Some(new_acc_torque) = o_new_acc_torque {
+                        acc_torque = acc_torque + new_acc_torque;
+                        display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
+                    }
+                    display.update_power(Some(power_measure.instantaneous_power));
+                    o_last_power_measure = Some(power_measure);
+                    db_power_measure
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 }
-                let o_new_acc_torque = o_last_power_measure
-                    .as_ref()
-                    .and_then(|x| x.new_accumulated_torque(&power_measure));
-                if let Some(new_acc_torque) = o_new_acc_torque {
-                    acc_torque = acc_torque + new_acc_torque;
-                    display.update_external_energy(2.0 * std::f64::consts::PI * acc_torque);
-                }
-                display.update_power(Some(power_measure.instantaneous_power));
-                o_last_power_measure = Some(power_measure);
-                db_power_measure
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Assioma Pedals!");
         }
 
@@ -482,26 +555,29 @@ pub fn main() {
             let mut crank_count = 0;
             let db_cadence_measure = db.clone();
             let display_mutex_cadence = display_mutex.clone();
-            cadence_measure.on_notification(Box::new(move |n| {
-                let elapsed = start.elapsed();
-                let csc_measure = parse_csc_measurement(&n.value);
-                let r =
-                    checked_crank_rpm_and_new_count(o_last_cadence_measure.as_ref(), &csc_measure);
-                if let Some((rpm, new_crank_count)) = r {
-                    crank_count = crank_count + new_crank_count;
-                    let mut display = display_mutex_cadence.lock().unwrap();
-                    display.update_cadence(Some(rpm as u8));
-                    display.update_crank_count(crank_count);
+            let mut notifications = cadence_measure.notifications().await?;
+            tokio::spawn(async move {
+                while let Some(n) = notifications.next().await {
+                    let elapsed = start.elapsed();
+                    let csc_measure = parse_csc_measurement(&n.value);
+                    let r =
+                        checked_crank_rpm_and_new_count(o_last_cadence_measure.as_ref(), &csc_measure);
+                    if let Some((rpm, new_crank_count)) = r {
+                        crank_count = crank_count + new_crank_count;
+                        let mut display = display_mutex_cadence.lock().unwrap();
+                        display.update_cadence(Some(rpm as u8));
+                        display.update_crank_count(crank_count);
+                    }
+                    o_last_cadence_measure = Some(csc_measure);
+                    db_cadence_measure
+                        .insert(
+                            session_key,
+                            elapsed,
+                            telemetry_db::Notification::Ble((n.uuid, n.value)),
+                        )
+                        .unwrap();
                 }
-                o_last_cadence_measure = Some(csc_measure);
-                db_cadence_measure
-                    .insert(
-                        session_key,
-                        elapsed,
-                        telemetry_db::Notification::Ble((n.uuid, n.value)),
-                    )
-                    .unwrap();
-            }));
+            });
             lock_and_show(&display_mutex, &"Setup Complete for Cadence Monitor");
         }
 
@@ -513,7 +589,6 @@ pub fn main() {
         // TODO: Maybe all workouts should have an explicit end, rather than a
         // tail?  That would make this more intuitive.  Then at the end of the
         // workout, the program exits (and systemd restarts it).
-        let o_kickr = Arc::new(o_kickr);
 
         // TODO: It's dumb that were managing these two separate mutexes (power
         // target and display).  The target should just be private state of the
@@ -523,14 +598,10 @@ pub fn main() {
         let power_target_mutex = Arc::new(Mutex::new(0));
 
         let power_target_mutex_workout = power_target_mutex.clone();
+
         let o_kickr_for_workout = o_kickr.clone();
         let display_mutex_workout = display_mutex.clone();
         let mut workout_handle = workout.run(Instant::now(), move |p| {
-            // If there's a connected Kickr, set its ERG mode power
-            for kickr in o_kickr_for_workout.iter() {
-                kickr.set_power(p).unwrap();
-            }
-
             // Update our power target used by the display, and update the
             // display immediately
             {
@@ -538,6 +609,15 @@ pub fn main() {
                 *power_target = p;
                 let mut display = display_mutex_workout.lock().unwrap();
                 display.set_page(display::Page::PowerTrack(p as i16));
+            }
+
+            // TODO: got to be a better way than this!
+            let o_kickr_for_workout = o_kickr_for_workout.clone();
+            async move {
+                // If there's a connected Kickr, set its ERG mode power
+                for (kickr, target_power) in o_kickr_for_workout.iter() {
+                    kickr::set_power(kickr, target_power, p).await.unwrap();
+                }
             }
         });
 
@@ -612,10 +692,13 @@ pub fn main() {
             thread::sleep(Duration::from_millis(100));
         });
 
+        // TODO: Idealy, the end of a workout ends the program
         render_handle.join().unwrap();
-        workout_handle.exit();
+        workout_handle.exit().await;
         lock_and_show(&display_mutex, &"Goodbye");
     }
+
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -714,31 +797,22 @@ fn selection<O: std::fmt::Display + Clone>(
 // central preforms a 5s scan, and then that central is returned.  This returns
 // a Error if there was a BLE error, and it returns an Ok(None) if there are no
 // adapters available.
-fn setup_ble_and_discover_devices(
-) -> btleplug::Result<Option<btleplug::bluez::adapter::ConnectedAdapter>> {
+async fn setup_ble_and_discover_devices() -> btleplug::Result<Option<btleplug::platform::Adapter>> {
     println!("Getting Manager...");
-    let manager = Manager::new()?;
+    let manager = Manager::new().await?;
 
-    let adapters = manager.adapters()?;
+    println!("Getting Adapters...");
+    let adapters = manager.adapters().await?;
 
     match adapters.into_iter().next() {
-        Some(adapter) => {
-            manager.down(&adapter)?;
-            manager.up(&adapter)?;
-
-            let central = adapter.connect()?;
-            // There's a bug in 0.4 that does not default the scan to active.
-            // Without an active scan the Polar H10 will not give back its name.
-            // TODO: remove this line after merge and upgrade.
-            central.active(true);
-
+        Some(central) => {
             println!("Starting Scan...");
-            central.start_scan()?;
+            central.start_scan(ScanFilter::default()).await?;
 
-            thread::sleep(Duration::from_secs(5));
+            tokio::time::sleep(Duration::from_secs(5)).await;
 
             println!("Stopping scan...");
-            central.stop_scan()?;
+            central.stop_scan().await?;
             Ok(Some(central))
         }
         None => Ok(None),
@@ -807,6 +881,30 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
             break None;
         }
     }
+}
+
+fn prompt_ignore_or_exit(
+    display: &mut display::Display,
+    buttons: &mut buttons::Buttons,
+    msg: &str,
+) -> IgnorableError {
+    display.render_msg(&format!("{}", msg));
+    thread::sleep(Duration::from_secs(1));
+    selection_tree(
+        display,
+        buttons,
+        vec![
+            SelectionTree {
+                label: "Ignore and Continue".to_string(),
+                value: SelectionTreeValue::Leaf(IgnorableError::Ignore),
+            },
+            SelectionTree {
+                label: "Exit".to_string(),
+                value: SelectionTreeValue::Leaf(IgnorableError::Exit),
+            },
+        ],
+        &format!("{}", msg),
+    )
 }
 
 fn lock_and_show(display_mutex: &Arc<Mutex<display::Display>>, msg: &str) {
@@ -906,7 +1004,7 @@ fn db_session_to_fit_records(
                     telemetry_db::Notification::Ble((hrm::MEASURE_UUID, v)) => {
                         r.heart_rate = Some(parse_hrm(&v).bpm as u8);
                     }
-                    telemetry_db::Notification::Ble((kickr::MEASURE_UUID, v)) => {
+                    telemetry_db::Notification::Ble((assioma::MEASURE_UUID, v)) => {
                         let power_measure = parse_cycling_power_measurement(&v);
                         r.power = Some(power_measure.instantaneous_power as u16);
                         let o_crank_rpm =

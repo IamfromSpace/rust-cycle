@@ -1,131 +1,117 @@
-use btleplug::api::{Central, CentralEvent, Characteristic, NotificationHandler, Peripheral, UUID};
+use btleplug::api::{Central, CentralEvent, Peripheral, bleuuid::uuid_from_u16, WriteType};
+use uuid::{Uuid, Builder};
 use btleplug::Result;
-use std::{
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::time::Duration;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use futures::stream::StreamExt;
 
-const UNLOCK_UUID: UUID = UUID::B128([
-    0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A, 0x02, 0xE0, 0x26, 0xA0,
-]);
+const UNLOCK_UUID: Uuid = Builder::from_bytes([
+    0xA0, 0x26, 0xE0, 0x02, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F, 0x9F, 0xEB, 0x8B,
+]).into_uuid();
 
-const TRAINER_UUID: UUID = UUID::B128([
-    0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A, 0x05, 0xE0, 0x26, 0xA0,
-]);
+const TRAINER_UUID: Uuid = Builder::from_bytes([
+    0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F, 0x9F, 0xEB, 0x8B,
+]).into_uuid();
 
-pub const MEASURE_UUID: UUID = UUID::B16(0x2A63);
+pub const MEASURE_UUID: Uuid = uuid_from_u16(0x2A63);
 
-pub const CONTROL_UUID: UUID = UUID::B128([
-    0x8B, 0xEB, 0x9F, 0x0F, 0x50, 0xF1, 0xFA, 0x97, 0xB3, 0x4A, 0x7D, 0x0A, 0x05, 0xE0, 0x26, 0xA0,
-]);
+pub const CONTROL_UUID: Uuid = Builder::from_bytes([
+    0xA0, 0x26, 0xE0, 0x05, 0x0A, 0x7D, 0x4A, 0xB3, 0x97, 0xFA, 0xF1, 0x50, 0x0F, 0x9F, 0xEB, 0x8B,
+]).into_uuid();
 
-pub struct Kickr<C: Central<P>, P: Peripheral> {
-    peripheral: P,
-    power_control_char: Characteristic,
-    target_power: Arc<Mutex<Option<u16>>>,
-    central: PhantomData<C>,
-}
-
-impl<P: Peripheral, C: Central<P> + 'static> Kickr<C, P> {
-    // TODO: It may make sense to use Type States to separate out new (Optional)
-    // and connect (Result).  For this app, we really only care about
-    // permanently connecting (but it would be nice to clean up connections on
-    // exit).
-    pub fn new(central: C) -> Result<Option<Self>> {
-        match central.peripherals().into_iter().find(is_kickr) {
-            None => Ok(None),
-            Some(peripheral) => {
-                peripheral.connect()?;
-                println!("Connected to KICKR");
-
-                peripheral.discover_characteristics()?;
-                println!("All characteristics discovered");
-
-                first_time_setup(&peripheral)?;
-                unlock(&peripheral)?;
-
-                let power_control_char = peripheral
-                    .characteristics()
-                    .into_iter()
-                    .find(|c| c.uuid == CONTROL_UUID)
-                    // Kickr with a Control UUID is an invariant
-                    .unwrap();
-
-                let target_power = Arc::new(Mutex::new(None));
-
-                let central_for_disconnects = central.clone();
-                let tp_for_disconnects = target_power.clone();
-                let pcc_for_disconnects = power_control_char.clone();
-
-                central.on_event(Box::new(move |evt| {
-                    if let CentralEvent::DeviceDisconnected(addr) = evt {
-                        let p = central_for_disconnects.peripheral(addr).unwrap();
-                        if is_kickr(&p) {
-                            let mut wait = 2;
-                            loop {
-                                thread::sleep(Duration::from_secs(wait));
-                                if p.connect().is_ok() {
-                                    // TODO: Not sure what we could possibly do if these fail
-                                    unlock(&p).unwrap();
-                                    if let Some(power) = *(tp_for_disconnects.lock().unwrap()) {
-                                        set_power(&p, &pcc_for_disconnects, power).unwrap();
-                                    }
-                                    break;
-                                }
-                                wait = wait * 2;
-                            }
-                        }
-                    }
-                }));
-
-                Ok(Some(Kickr {
-                    peripheral,
-                    power_control_char,
-                    target_power,
-                    central: PhantomData,
-                }))
-            }
+pub async fn connect<P: Peripheral, C: Central<Peripheral=P> + 'static>(central: &C) -> Result<Option<(P, Arc<Mutex<Option<u16>>>)>> {
+    println!("Getting peripherals");
+    let peripherals: Vec<P> = central.peripherals().await?;
+    println!("Got peripherals list");
+    let mut o_peripheral: Option<P> = None;
+    for peripheral in peripherals {
+        println!("Checking if device is kickr");
+        let found_it = is_kickr(&peripheral).await?;
+        if found_it {
+          o_peripheral = Some(peripheral);
+          break;
         }
     }
 
-    pub fn set_power(&self, power: u16) -> Result<()> {
-        // TODO: We get a notification when this is done, so if we hold the lock
-        // until then, we can use eventing to ensure a good sync.
-        let mut tp_guard = self.target_power.lock().unwrap();
-        *tp_guard = Some(power);
+    match o_peripheral {
+        None => Ok(None),
+        Some(peripheral) => {
+            println!("Found Kickr");
 
-        set_power(&self.peripheral, &self.power_control_char, power)
-    }
+            peripheral.connect().await?;
+            println!("Connected to Kickr");
 
-    // TODO: Make this scoped just to power or just more specific in general?
-    pub fn on_notification(&self, cb: NotificationHandler) {
-        self.peripheral.on_notification(cb)
+            peripheral.discover_services().await?;
+            println!("All characteristics discovered");
+
+            first_time_setup(&peripheral).await?;
+
+            let target_power = Arc::new(Mutex::new(None));
+
+            let central_for_disconnects = central.clone();
+            let tp_for_disconnects = target_power.clone();
+
+            let mut events = central.events().await?;
+            tokio::spawn(async move {
+                while let Some(evt) = events.next().await {
+                    if let CentralEvent::DeviceDisconnected(addr) = evt {
+                        let p = central_for_disconnects.peripheral(&addr).await.unwrap();
+                        if is_kickr(&p).await.unwrap() {
+                            let wait = Duration::from_secs(10);
+                            loop {
+                                tokio::time::sleep(wait).await;
+                                if p.connect().await.is_ok() {
+                                    // TODO: Not sure what we could possibly do if these fail
+                                    unlock(&p).await.unwrap();
+
+                                    let guard = tp_for_disconnects.lock().await;
+                                    if let Some(power) = *guard {
+                                        write_power(&p, power).await.unwrap();
+                                    }
+
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // TODO: This return type is pretty ugly, and means that users have
+            // to wrangle these to independent pieces when it really should all
+            // be encapsulated.  I couldn't figure out how to wrap
+            // peripheral.notifications().  Also, long term, we probably just
+            // want some sort of BleDeviceManager type that handles all devices
+            // more abstractly (since that's part of the whole point of the
+            // GATT interface), and worries about connecting to them and
+            // maintaining connections where appropriate.  This is the bulk of
+            // our code in the main function.
+            Ok(Some((peripheral, target_power)))
+        }
     }
 }
 
-impl<C: Central<P>, P: Peripheral> Drop for Kickr<C, P> {
-    fn drop(&mut self) {
-        self.peripheral.clear_notification_handlers();
-    }
+async fn is_kickr(p: &impl Peripheral) -> Result<bool> {
+    let op = p.properties().await?;
+    Ok(match op {
+      Some(properties) =>
+        properties
+            .local_name
+            .iter()
+            .any(|name| name.contains("KICKR")),
+      None => false
+    })
 }
 
-fn is_kickr(p: &impl Peripheral) -> bool {
-    p.properties()
-        .local_name
-        .iter()
-        .any(|name| name.contains("KICKR"))
-}
-
-fn first_time_setup(kickr: &impl Peripheral) -> Result<()> {
+async fn first_time_setup(kickr: &impl Peripheral) -> Result<()> {
     let power_measurement = kickr
         .characteristics()
         .into_iter()
         .find(|c| c.uuid == MEASURE_UUID)
         .unwrap();
 
-    kickr.subscribe(&power_measurement)?;
+    kickr.subscribe(&power_measurement).await?;
     println!("Subscribed to power measure");
 
     let trainer_characteristic = kickr
@@ -135,12 +121,14 @@ fn first_time_setup(kickr: &impl Peripheral) -> Result<()> {
         .unwrap();
     println!("Trainer char found.");
 
-    kickr.subscribe(&trainer_characteristic)?;
+    kickr.subscribe(&trainer_characteristic).await?;
     println!("Subscribed to trainer characteristic");
+
+    unlock(kickr).await?;
     Ok(())
 }
 
-fn unlock(kickr: &impl Peripheral) -> Result<()> {
+async fn unlock(kickr: &impl Peripheral) -> Result<()> {
     let unlock_characteristic = kickr
         .characteristics()
         .into_iter()
@@ -148,20 +136,40 @@ fn unlock(kickr: &impl Peripheral) -> Result<()> {
         .unwrap();
     println!("Unlock char found.");
 
-    kickr.command(&unlock_characteristic, &[0x20, 0xee, 0xfc])?;
+    kickr.write(
+      &unlock_characteristic,
+      &[0x20, 0xee, 0xfc],
+      WriteType::WithoutResponse
+    ).await?;
     println!("kickr unlocked!");
     Ok(())
 }
 
-fn set_power(
+pub async fn set_power(
     peripheral: &impl Peripheral,
-    power_control_char: &Characteristic,
+    target_power_mutex: &Arc<Mutex<Option<u16>>>,
     power: u16,
 ) -> Result<()> {
-    peripheral.request(
-        power_control_char,
+    let mut tp_guard = target_power_mutex.lock().await;
+    *tp_guard = Some(power);
+
+     write_power(peripheral, power).await
+}
+
+async fn write_power(
+    peripheral: &impl Peripheral,
+    power: u16,
+) -> Result<()> {
+    let power_control_char = peripheral
+        .characteristics()
+        .into_iter()
+        .find(|c| c.uuid == CONTROL_UUID)
+        // Kickr with a Control UUID is an invariant
+        .unwrap();
+
+    peripheral.write(
+        &power_control_char,
         &[0x42, (power & 0xff) as u8, ((power >> 8) & 0xff) as u8],
-    )?;
-    thread::sleep(Duration::from_secs(1));
-    Ok(())
+        WriteType::WithResponse
+    ).await
 }
