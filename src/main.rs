@@ -922,20 +922,6 @@ fn or_crash_with_msg<T>(display: &mut display::Display, x: Option<T>, msg: &'sta
     }
 }
 
-fn or_crash_and_lock_with_msg<T>(
-    display_mutex: &Arc<Mutex<display::Display>>,
-    x: Option<T>,
-    msg: &'static str,
-) -> T {
-    match x {
-        Some(y) => y,
-        None => {
-            let mut display = display_mutex.lock().unwrap();
-            crash_with_msg(&mut display, msg)
-        }
-    }
-}
-
 fn db_sessions_to_fit<I: Iterator<Item = u64>>(
     db: &telemetry_db::TelemetryDb,
     session_keys: I,
