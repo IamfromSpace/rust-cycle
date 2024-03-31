@@ -1384,8 +1384,6 @@ dependencies = [
  "embedded-graphics-simulator",
  "env_logger",
  "futures",
- "futures-core",
- "futures-util",
  "git-version",
  "nmea0183",
  "nom",
