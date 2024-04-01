@@ -34,6 +34,10 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use futures::stream::StreamExt;
 use workout::{create_big_start_interval, ramp_test, single_value};
+#[cfg(not(feature = "simulator"))]
+use crate::memory_lcd::MemoryLcd;
+#[cfg(feature = "simulator")]
+use crate::memory_lcd_simulator::MemoryLcd;
 
 // TODO:  Allow calibration
 // In meters
@@ -88,8 +92,15 @@ pub async fn main() -> btleplug::Result<()> {
         // Serve our telemetry data
         let server = telemetry_server::TelemetryServer::new(db.clone());
 
+        // Setup a channel for sending and receiving button signals
+        let (button_tx, button_rx) = std::sync::mpsc::channel();
+
         // Create Our Display
-        let mut display = display::Display::new(version.to_string());
+        #[cfg(feature = "simulator")]
+        let memory_lcd = MemoryLcd::new(button_tx.clone()).unwrap();
+        #[cfg(not(feature = "simulator"))]
+        let memory_lcd = MemoryLcd::new().unwrap();
+        let mut display = display::Display::new(version.to_string(), memory_lcd);
 
         // Create our Buttons
         // TODO: Simulate these, so we can run everything on desktop in
@@ -662,16 +673,22 @@ pub async fn main() -> btleplug::Result<()> {
             Box::new(move || workout::add_offset(&workout_state, 5)),
         );
 
-        let m_will_exit = Arc::new(Mutex::new(false));
-        let m_will_exit_for_button = m_will_exit.clone();
         buttons.on_hold(
             buttons::Button::ButtonA,
             Duration::from_secs(5),
-            Box::new(move || {
+            Box::new(move || button_tx.send(()).unwrap())
+        );
+
+        let m_will_exit = Arc::new(Mutex::new(false));
+        let m_will_exit_for_button = m_will_exit.clone();
+        let _ = thread::spawn(move || {
+            // TODO: Handle all button presses
+            for _ in button_rx {
                 let mut will_exit = m_will_exit_for_button.lock().unwrap();
                 *will_exit = true;
-            }),
-        );
+                break;
+            }
+        });
 
         // Update it every second
         let display_mutex_for_render = display_mutex.clone();

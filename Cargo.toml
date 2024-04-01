@@ -21,6 +21,7 @@ xi-unicode = "0.2"
 uuid = "1.7.0"
 futures = "0.3.30"
 tokio = { version = "1.36.0", features = ["full"] }
+sdl2 = "0.32.2"
 
 [features]
 simulator =  ["embedded-graphics-simulator"]

@@ -24,8 +24,7 @@ pub struct Display {
 }
 
 impl Display {
-    pub fn new(version: String) -> Display {
-        let memory_lcd = MemoryLcd::new().unwrap();
+    pub fn new(version: String, memory_lcd: MemoryLcd) -> Display {
         let workout = WorkoutDisplay::new();
         Display {
             memory_lcd,

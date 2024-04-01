@@ -1364,6 +1364,7 @@ dependencies = [
  "nmea0183",
  "nom",
  "rppal",
+ "sdl2",
  "serde",
  "sled",
  "tiny_http",
