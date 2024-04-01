@@ -676,17 +676,19 @@ pub async fn main() -> btleplug::Result<()> {
         buttons.on_hold(
             buttons::Button::ButtonA,
             Duration::from_secs(5),
-            Box::new(move || button_tx.send(()).unwrap())
+            Box::new(move || button_tx.send((buttons::Button::ButtonA, true)).unwrap())
         );
 
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
         let _ = thread::spawn(move || {
             // TODO: Handle all button presses
-            for _ in button_rx {
-                let mut will_exit = m_will_exit_for_button.lock().unwrap();
-                *will_exit = true;
-                break;
+            for event in button_rx {
+                if event == (buttons::Button::ButtonA, true) {
+                    let mut will_exit = m_will_exit_for_button.lock().unwrap();
+                    *will_exit = true;
+                    break;
+                }
             }
         });
 
