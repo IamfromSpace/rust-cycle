@@ -633,12 +633,10 @@ pub async fn main() -> btleplug::Result<()> {
         // "UserInterface" that hides the buttons (this would make using the
         // simulator much easier, for example).
         let display_mutex_standard_page = display_mutex.clone();
+        let btx = button_tx.clone();
         buttons.on_press(
             buttons::Button::ButtonE,
-            Box::new(move || {
-                let mut display = display_mutex_standard_page.lock().unwrap();
-                display.set_page(display::Page::Standard);
-            }),
+            Box::new(move || btx.send((buttons::Button::ButtonE, false)).unwrap())
         );
 
         // TODO: Like many other things, this should be encapsulated in some
@@ -649,34 +647,33 @@ pub async fn main() -> btleplug::Result<()> {
 
         let power_target_mutex_power_track_page = power_target_mutex.clone();
         let display_mutex_power_track_page = display_mutex.clone();
+        let btx = button_tx.clone();
         buttons.on_press(
             buttons::Button::ButtonD,
-            Box::new(move || {
-                let mut display = display_mutex_power_track_page.lock().unwrap();
-                let power = power_target_mutex_power_track_page.lock().unwrap();
-                // TODO: This should be configurable
-                display.set_page(display::Page::PowerTrack(*power as i16));
-            }),
+            Box::new(move || btx.send((buttons::Button::ButtonD, false)).unwrap())
         );
 
         let workout_state = workout_handle.state.clone();
+        let btx = button_tx.clone();
         buttons.on_hold(
             buttons::Button::ButtonE,
             Duration::from_secs(2),
-            Box::new(move || workout::add_offset(&workout_state, -5)),
+            Box::new(move || btx.send((buttons::Button::ButtonE, true)).unwrap())
         );
 
         let workout_state = workout_handle.state.clone();
+        let btx = button_tx.clone();
         buttons.on_hold(
             buttons::Button::ButtonD,
             Duration::from_secs(2),
-            Box::new(move || workout::add_offset(&workout_state, 5)),
+            Box::new(move || btx.send((buttons::Button::ButtonD, true)).unwrap())
         );
 
+        let btx = button_tx.clone();
         buttons.on_hold(
             buttons::Button::ButtonA,
             Duration::from_secs(5),
-            Box::new(move || button_tx.send((buttons::Button::ButtonA, true)).unwrap())
+            Box::new(move || btx.send((buttons::Button::ButtonA, true)).unwrap())
         );
 
         let m_will_exit = Arc::new(Mutex::new(false));
@@ -684,10 +681,31 @@ pub async fn main() -> btleplug::Result<()> {
         let _ = thread::spawn(move || {
             // TODO: Handle all button presses
             for event in button_rx {
-                if event == (buttons::Button::ButtonA, true) {
-                    let mut will_exit = m_will_exit_for_button.lock().unwrap();
-                    *will_exit = true;
-                    break;
+                match event {
+                    // Presses
+                    (buttons::Button::ButtonE, false) => {
+                        let mut display = display_mutex_standard_page.lock().unwrap();
+                        display.set_page(display::Page::Standard);
+                    },
+                    (buttons::Button::ButtonD, false) => {
+                        let mut display = display_mutex_power_track_page.lock().unwrap();
+                        let power = power_target_mutex_power_track_page.lock().unwrap();
+                        // TODO: This should be configurable
+                        display.set_page(display::Page::PowerTrack(*power as i16));
+                    },
+                    // Holds
+                    (buttons::Button::ButtonE, true) => {
+                        workout::add_offset(&workout_state, -5);
+                    },
+                    (buttons::Button::ButtonD, true) => {
+                        workout::add_offset(&workout_state, 5);
+                    },
+                    (buttons::Button::ButtonA, true) => {
+                        let mut will_exit = m_will_exit_for_button.lock().unwrap();
+                        *will_exit = true;
+                        break;
+                    },
+                    _ => ()
                 }
             }
         });
