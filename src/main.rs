@@ -632,28 +632,18 @@ pub async fn main() -> btleplug::Result<()> {
         // TODO: The Combo of Buttons and Display should make up a sort of
         // "UserInterface" that hides the buttons (this would make using the
         // simulator much easier, for example).
-        let display_mutex_standard_page = display_mutex.clone();
         let btx = button_tx.clone();
         buttons.on_press(
             buttons::Button::ButtonE,
             Box::new(move || btx.send((buttons::Button::ButtonE, false)).unwrap())
         );
 
-        // TODO: Like many other things, this should be encapsulated in some
-        // sort of User Interface concept that understands both inputs (buttons)
-        // and outputs (screens)
-        // TODO: Quite a lot of repetition here to ensure that changes to the
-        // target refect immediately.
-
-        let power_target_mutex_power_track_page = power_target_mutex.clone();
-        let display_mutex_power_track_page = display_mutex.clone();
         let btx = button_tx.clone();
         buttons.on_press(
             buttons::Button::ButtonD,
             Box::new(move || btx.send((buttons::Button::ButtonD, false)).unwrap())
         );
 
-        let workout_state = workout_handle.state.clone();
         let btx = button_tx.clone();
         buttons.on_hold(
             buttons::Button::ButtonE,
@@ -661,7 +651,6 @@ pub async fn main() -> btleplug::Result<()> {
             Box::new(move || btx.send((buttons::Button::ButtonE, true)).unwrap())
         );
 
-        let workout_state = workout_handle.state.clone();
         let btx = button_tx.clone();
         buttons.on_hold(
             buttons::Button::ButtonD,
@@ -676,6 +665,9 @@ pub async fn main() -> btleplug::Result<()> {
             Box::new(move || btx.send((buttons::Button::ButtonA, true)).unwrap())
         );
 
+        let display_mutex_button_rx = display_mutex.clone();
+        let power_target_mutex_button_rx = power_target_mutex.clone();
+        let workout_state = workout_handle.state.clone();
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
         let _ = thread::spawn(move || {
@@ -684,12 +676,12 @@ pub async fn main() -> btleplug::Result<()> {
                 match event {
                     // Presses
                     (buttons::Button::ButtonE, false) => {
-                        let mut display = display_mutex_standard_page.lock().unwrap();
+                        let mut display = display_mutex_button_rx.lock().unwrap();
                         display.set_page(display::Page::Standard);
                     },
                     (buttons::Button::ButtonD, false) => {
-                        let mut display = display_mutex_power_track_page.lock().unwrap();
-                        let power = power_target_mutex_power_track_page.lock().unwrap();
+                        let mut display = display_mutex_button_rx.lock().unwrap();
+                        let power = power_target_mutex_button_rx.lock().unwrap();
                         // TODO: This should be configurable
                         display.set_page(display::Page::PowerTrack(*power as i16));
                     },
