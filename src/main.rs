@@ -92,6 +92,10 @@ pub async fn main() -> btleplug::Result<()> {
         // Serve our telemetry data
         let server = telemetry_server::TelemetryServer::new(db.clone());
 
+        // TODO: The Combo of Buttons and Display should make up a sort of
+        // "UserInterface" that hides the buttons (this would make using the
+        // simulator much easier, for example).
+
         // Setup a channel for sending and receiving button signals
         let (button_tx, button_rx) = std::sync::mpsc::channel();
 
@@ -103,17 +107,80 @@ pub async fn main() -> btleplug::Result<()> {
         let mut display = display::Display::new(version.to_string(), memory_lcd);
 
         // Create our Buttons
-        // TODO: Simulate these, so we can run everything on desktop in
-        // simulator mode.
-        let mut buttons = buttons::Buttons::new();
+        let buttons = buttons::Buttons::new();
+
+        // Attach all of our handlers to send button events into the channel
+        let btx = button_tx.clone();
+        buttons.on_press(
+            buttons::Button::ButtonE,
+            Box::new(move || btx.send((buttons::Button::ButtonE, false)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_press(
+            buttons::Button::ButtonD,
+            Box::new(move || btx.send((buttons::Button::ButtonD, false)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_press(
+            buttons::Button::ButtonC,
+            Box::new(move || btx.send((buttons::Button::ButtonC, false)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_press(
+            buttons::Button::ButtonB,
+            Box::new(move || btx.send((buttons::Button::ButtonB, false)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_press(
+            buttons::Button::ButtonA,
+            Box::new(move || btx.send((buttons::Button::ButtonA, false)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_hold(
+            buttons::Button::ButtonE,
+            Duration::from_secs(3),
+            Box::new(move || btx.send((buttons::Button::ButtonE, true)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_hold(
+            buttons::Button::ButtonD,
+            Duration::from_secs(3),
+            Box::new(move || btx.send((buttons::Button::ButtonD, true)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_hold(
+            buttons::Button::ButtonC,
+            Duration::from_secs(3),
+            Box::new(move || btx.send((buttons::Button::ButtonC, true)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_hold(
+            buttons::Button::ButtonB,
+            Duration::from_secs(3),
+            Box::new(move || btx.send((buttons::Button::ButtonB, true)).unwrap())
+        );
+
+        let btx = button_tx.clone();
+        buttons.on_hold(
+            buttons::Button::ButtonA,
+            Duration::from_secs(3),
+            Box::new(move || btx.send((buttons::Button::ButtonA, true)).unwrap())
+        );
 
         // TODO: Select Enums
         use OrExit::{Exit, NotExit};
         use SelectionTreeValue::{Leaf, Node};
-        #[cfg(not(feature = "simulator"))]
         let devices = selection_tree(
             &mut display,
-            &mut buttons,
+            &button_rx,
             vec![
                 SelectionTree {
                     label: "Zenia".to_string(),
@@ -156,7 +223,6 @@ pub async fn main() -> btleplug::Result<()> {
             &"Choose profile",
         );
 
-        #[cfg(not(feature = "simulator"))]
         let devices = match devices {
             Exit => {
                 display.render_msg("Goodbye");
@@ -165,6 +231,8 @@ pub async fn main() -> btleplug::Result<()> {
                 drop(server);
                 drop(display);
                 drop(buttons);
+
+                #[cfg(not(feature = "simulator"))]
                 std::process::Command::new("sudo")
                     .arg("shutdown")
                     .arg("now")
@@ -175,10 +243,9 @@ pub async fn main() -> btleplug::Result<()> {
             NotExit(x) => x,
         };
 
-        #[cfg(not(feature = "simulator"))]
         let workout = selection_tree(
             &mut display,
-            &mut buttons,
+            &button_rx,
             vec![
                 SelectionTree {
                     label: "Fixed".to_string(),
@@ -245,18 +312,6 @@ pub async fn main() -> btleplug::Result<()> {
             &"Choose workout",
         );
 
-        #[cfg(feature = "simulator")]
-        let devices = SelectedDevices {
-                        assioma: true,
-                        cadence: false,
-                        gps: false,
-                        hr: true,
-                        kickr: false,
-                        speed: false,
-                    };
-        #[cfg(feature = "simulator")]
-        let workout = single_value(100);
-
         // We want instant, because we want this to be monotonic. We don't want
         // clock drift/corrections to cause events to be processed out of order.
         let start = Instant::now();
@@ -279,7 +334,7 @@ pub async fn main() -> btleplug::Result<()> {
         );
 
         let mut o_gps =
-            user_connect_or_skip(&mut display, &mut buttons, devices.gps, "GPS", || {
+            user_connect_or_skip(&mut display, &button_rx, devices.gps, "GPS", || {
                 gps::Gps::new()
             });
 
@@ -301,7 +356,7 @@ pub async fn main() -> btleplug::Result<()> {
                        println!("{:?}", e);
                        match prompt_ignore_or_exit(
                            &mut display,
-                           &mut buttons,
+                           &button_rx,
                            "Speed connect error."
                        ) {
                            IgnorableError::Ignore => None,
@@ -323,7 +378,7 @@ pub async fn main() -> btleplug::Result<()> {
                        println!("{:?}", e);
                        match prompt_ignore_or_exit(
                            &mut display,
-                           &mut buttons,
+                           &button_rx,
                            "HR Monitor connect error."
                        ) {
                            IgnorableError::Ignore => None,
@@ -361,7 +416,7 @@ pub async fn main() -> btleplug::Result<()> {
                        println!("{:?}", e);
                        match prompt_ignore_or_exit(
                            &mut display,
-                           &mut buttons,
+                           &button_rx,
                            "Cadence connect error."
                        ) {
                            IgnorableError::Ignore => None,
@@ -629,41 +684,8 @@ pub async fn main() -> btleplug::Result<()> {
             }
         });
 
-        // TODO: The Combo of Buttons and Display should make up a sort of
-        // "UserInterface" that hides the buttons (this would make using the
-        // simulator much easier, for example).
-        let btx = button_tx.clone();
-        buttons.on_press(
-            buttons::Button::ButtonE,
-            Box::new(move || btx.send((buttons::Button::ButtonE, false)).unwrap())
-        );
-
-        let btx = button_tx.clone();
-        buttons.on_press(
-            buttons::Button::ButtonD,
-            Box::new(move || btx.send((buttons::Button::ButtonD, false)).unwrap())
-        );
-
-        let btx = button_tx.clone();
-        buttons.on_hold(
-            buttons::Button::ButtonE,
-            Duration::from_secs(2),
-            Box::new(move || btx.send((buttons::Button::ButtonE, true)).unwrap())
-        );
-
-        let btx = button_tx.clone();
-        buttons.on_hold(
-            buttons::Button::ButtonD,
-            Duration::from_secs(2),
-            Box::new(move || btx.send((buttons::Button::ButtonD, true)).unwrap())
-        );
-
-        let btx = button_tx.clone();
-        buttons.on_hold(
-            buttons::Button::ButtonA,
-            Duration::from_secs(5),
-            Box::new(move || btx.send((buttons::Button::ButtonA, true)).unwrap())
-        );
+        // Clear all events that happened before the workout started
+        for _ in button_rx.try_iter() {}
 
         let display_mutex_button_rx = display_mutex.clone();
         let power_target_mutex_button_rx = power_target_mutex.clone();
@@ -749,13 +771,13 @@ impl<T> std::fmt::Display for SelectionTree<T> {
 // favorite breakfast food:"
 fn selection_tree<O: Clone>(
     mut display: &mut display::Display,
-    mut buttons: &mut buttons::Buttons,
+    button_rx: &std::sync::mpsc::Receiver<(crate::buttons::Button, bool)>,
     tree: Vec<SelectionTree<O>>,
     label: &str,
 ) -> O {
     let mut t = tree;
     loop {
-        match selection(&mut display, &mut buttons, &t, label).value {
+        match selection(&mut display, &button_rx, &t, label).value {
             SelectionTreeValue::Node(selected_tree) => {
                 t = selected_tree;
             }
@@ -768,7 +790,7 @@ fn selection_tree<O: Clone>(
 
 fn selection<O: std::fmt::Display + Clone>(
     display: &mut display::Display,
-    buttons: &mut buttons::Buttons,
+    button_rx: &std::sync::mpsc::Receiver<(crate::buttons::Button, bool)>,
     options: &Vec<O>,
     label: &str,
 ) -> O {
@@ -776,47 +798,53 @@ fn selection<O: std::fmt::Display + Clone>(
         panic!("Unsupported selection length!");
     }
 
-    let choice = Arc::new(Mutex::new(None));
-    use buttons::Button;
-    let bs = vec![
-        Button::ButtonE,
-        Button::ButtonD,
-        Button::ButtonC,
-        Button::ButtonB,
-        Button::ButtonA,
-    ];
-
-    for i in 0..options.len() {
-        let choice_button = choice.clone();
-        buttons.on_press(
-            bs[i],
-            Box::new(move || {
-                let mut choice = choice_button.lock().unwrap();
-                if let None = *choice {
-                    *choice = Some(i);
-                }
-            }),
-        );
-    }
-
     let strings: Vec<String> = options.iter().map(|x| format!("{}", x)).collect();
     display.render_options(label, &strings.iter().map(|x| &**x).collect());
 
-    let index = loop {
-        {
-            let or = choice.lock().unwrap();
-            if let Some(r) = *or {
-                break r;
+    // Clear all events that occurred before the display update
+    for _ in button_rx.try_iter() {}
+
+    loop {
+        // TODO: The simulator only flushes key events when the display is updated
+        #[cfg(feature = "simulator")]
+        display.render_options(label, &strings.iter().map(|x| &**x).collect());
+
+        for event in button_rx.try_iter() {
+            match event {
+                // Presses
+                (buttons::Button::ButtonE, false) => {
+                    if options.len() > 0 {
+                        return options[0].clone();
+                    }
+                },
+                (buttons::Button::ButtonD, false) => {
+                    if options.len() > 1 {
+                        return options[1].clone();
+                    }
+                },
+                (buttons::Button::ButtonC, false) => {
+                    if options.len() > 2 {
+                        return options[2].clone();
+                    }
+                },
+                (buttons::Button::ButtonB, false) => {
+                    if options.len() > 3 {
+                        return options[3].clone();
+                    }
+                },
+                (buttons::Button::ButtonA, false) => {
+                    if options.len() > 4 {
+                        return options[4].clone();
+                    }
+                },
+                _ => (),
             }
         }
-        thread::sleep(Duration::from_millis(15));
-    };
 
-    for b in bs {
-        buttons.clear_handlers(b);
+        // We flushed the queue (which maybe was empty), but no events matched,
+        // so we need to wait for more events.
+        thread::sleep(Duration::from_millis(100));
     }
-
-    options[index].clone()
 }
 
 // Creates a manager, adapter, and connects it to create a central.  That
@@ -855,7 +883,7 @@ fn squish_error<T>(x: btleplug::Result<Option<T>>) -> btleplug::Result<T> {
 
 fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
     display: &mut display::Display,
-    buttons: &mut buttons::Buttons,
+    buttons_rx: &std::sync::mpsc::Receiver<(crate::buttons::Button, bool)>,
     in_use: bool,
     name: &str,
     f: F,
@@ -874,7 +902,7 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
                     thread::sleep(Duration::from_secs(1));
                     let choice = selection_tree(
                         display,
-                        buttons,
+                        buttons_rx,
                         vec![
                             SelectionTree {
                                 label: "Try Again".to_string(),
@@ -911,14 +939,14 @@ fn user_connect_or_skip<T, E: std::fmt::Debug, F: Fn() -> Result<T, E>>(
 
 fn prompt_ignore_or_exit(
     display: &mut display::Display,
-    buttons: &mut buttons::Buttons,
+    button_rx: &std::sync::mpsc::Receiver<(crate::buttons::Button, bool)>,
     msg: &str,
 ) -> IgnorableError {
     display.render_msg(&format!("{}", msg));
     thread::sleep(Duration::from_secs(1));
     selection_tree(
         display,
-        buttons,
+        button_rx,
         vec![
             SelectionTree {
                 label: "Ignore and Continue".to_string(),
