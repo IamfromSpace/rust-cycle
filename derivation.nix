@@ -2,7 +2,7 @@
   { rustPlatform, lib, pkg-config, dbus, SDL2 }:
     rustPlatform.buildRustPackage rec {
       pname = "rust-cycle";
-      version = "0.2.0";
+      version = "1.0.11";
 
       # blteplug requires the crate libdbus-sys, which requires pkg-config+bdus
       # embedded-graphics-simulator requires SDL2
