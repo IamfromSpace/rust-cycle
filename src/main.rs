@@ -405,16 +405,44 @@ pub async fn main() -> btleplug::Result<()> {
 
         let mut o_kickr =
            if devices.kickr {
-               let p = kickr::connect(&central).await?;
-               Some(or_crash_with_msg(&mut display, p, "Kickr was requested but not found."))
+               match squish_error(kickr::connect(&central).await) {
+                   Ok(kickr) => Some(kickr),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &button_rx,
+                           "Kickr connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "Kickr connect error.")
+                           }
+                       }
+                   }
+               }
            } else {
                None
            };
 
         let mut o_assioma =
            if devices.assioma {
-               let p = assioma::connect(&central).await?;
-               Some(or_crash_with_msg(&mut display, p, "Assioma was requested but not found."))
+               match squish_error(assioma::connect(&central).await) {
+                   Ok(assioma) => Some(assioma),
+                   Err(e) => {
+                       println!("{:?}", e);
+                       match prompt_ignore_or_exit(
+                           &mut display,
+                           &button_rx,
+                           "Assioma connect error."
+                       ) {
+                           IgnorableError::Ignore => None,
+                           IgnorableError::Exit => {
+                               crash_with_msg(&mut display, "Assioma connect error.")
+                           }
+                       }
+                   }
+               }
            } else {
                None
            };
