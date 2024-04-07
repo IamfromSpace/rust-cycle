@@ -205,7 +205,7 @@ pub async fn main() -> btleplug::Result<()> {
                     })),
                 },
                 SelectionTree {
-                    label: "Nathan Indoor".to_string(),
+                    label: "Nathan Kickr".to_string(),
                     value: Leaf(NotExit(SelectedDevices {
                         assioma: true,
                         cadence: false,
@@ -213,6 +213,17 @@ pub async fn main() -> btleplug::Result<()> {
                         hr: true,
                         kickr: true,
                         speed: false,
+                    })),
+                },
+                SelectionTree {
+                    label: "Nathan Rollers".to_string(),
+                    value: Leaf(NotExit(SelectedDevices {
+                        assioma: true,
+                        cadence: false,
+                        gps: false,
+                        hr: true,
+                        kickr: false,
+                        speed: true,
                     })),
                 },
                 SelectionTree {
