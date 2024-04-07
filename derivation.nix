@@ -16,5 +16,17 @@
          "nmea0183-0.2.2" = "sha256-d0LnICwpsN6RaTDRkInicitQhTuRAmf4HKSllCyt7F4=";
         };
       };
-      src = lib.cleanSource ./.;
+      src =
+        lib.fileset.toSource {
+          root = ./.;
+          fileset =
+            lib.fileset.unions [
+              ./Cargo.toml
+              ./Cargo.lock
+              (lib.fileset.intersection
+                (lib.fileset.fileFilter (x: x.hasExt "rs") ./src)
+                (lib.fileset.gitTracked ./.)
+              )
+            ];
+        };
     }
