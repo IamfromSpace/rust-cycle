@@ -4,6 +4,7 @@ mod cycle_tree;
 mod display;
 mod fit;
 mod gps;
+#[cfg(not(feature = "simulator"))]
 mod memory_lcd;
 #[cfg(feature = "simulator")]
 mod memory_lcd_simulator;
