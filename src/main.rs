@@ -733,7 +733,6 @@ pub async fn main() -> btleplug::Result<()> {
         let m_will_exit = Arc::new(Mutex::new(false));
         let m_will_exit_for_button = m_will_exit.clone();
         let _ = thread::spawn(move || {
-            // TODO: Handle all button presses
             for event in button_rx {
                 match event {
                     // Presses
